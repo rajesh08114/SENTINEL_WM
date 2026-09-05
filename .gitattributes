@@ -1,0 +1,18 @@
+# Normalise line endings: LF in the repo, checked out native on each OS.
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.toml  text eol=lf
+*.txt   text eol=lf
+*.ipynb text eol=lf
+
+# Binary / large assets - never diff or normalise.
+*.pdf     binary
+*.csv     binary
+*.parquet binary
+*.npz     binary
+*.pkl     binary
+*.pt      binary
+*.pcap    binary
+*.pcapng  binary

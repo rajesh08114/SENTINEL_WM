@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sentinel-wm"
+version = "0.1.0"
+description = "A learned world model for forecasting network attack progression from traffic telemetry"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "SENTINEL-WM team" }]
+keywords = ["world-model", "cyber-defence", "intrusion-forecasting",
+            "mitre-attack", "cic-ids-2017", "transformer"]
+
+dependencies = [
+    "numpy>=1.23,<2.0",
+    "pandas>=1.5",
+    "pyarrow>=10.0",
+    "scikit-learn>=1.0",
+    "scipy>=1.9",
+    "torch>=2.1",
+    "matplotlib>=3.6",
+]
+
+[project.optional-dependencies]
+notebooks = ["jupyter>=1.0", "nbconvert>=7.0"]
+explain = ["shap>=0.44"]
+extraction = ["scapy>=2.5"]      # also needs the `tshark` binary on PATH
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+sentinel-wm = "sentinel_wm.cli:main"
+
+[tool.setuptools]
+packages = ["sentinel_wm"]
+
+[tool.setuptools.package-data]
+sentinel_wm = ["py.typed"]
