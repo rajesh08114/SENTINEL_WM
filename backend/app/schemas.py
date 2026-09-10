@@ -23,9 +23,10 @@ class HorizonStep(BaseModel):
     model_config = ConfigDict(extra="allow")
     k: int
     horizon_seconds: int
-    attack_prob: float
+    attack_prob: float                    # world-model rollout P(attack) (has the CI)
     attack_ci: list[float]
     attack_std: float
+    detection_prob: Optional[float] = None  # SENTINEL-WM (system) blended prob (drives the alert)
     progression_state: str
     progression_dist: dict[str, float]
     attck: AttckAssessment
@@ -39,6 +40,8 @@ class AnchorForecast(BaseModel):
     lead_time_seconds: int
     first_alert_k: Optional[int] = None
     max_attack_prob: float
+    max_detection_prob: Optional[float] = None
+    detection_model: Optional[str] = None   # "SENTINEL-WM (system)" when the blend is active
     horizon: list[HorizonStep]
     driving_features: Optional[dict[str, Any]] = None
 
@@ -84,6 +87,9 @@ class MetaResponse(BaseModel):
     feature_names: list[str]
     alert_threshold: float
     device: str
+    serve_mode: str = "world_model"        # "system" | "world_model"
+    blend_members: list[str] = []
+    blend_weight: Optional[float] = None
     bundle: dict[str, Any] = {}
 
 

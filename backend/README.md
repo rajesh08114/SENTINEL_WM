@@ -4,10 +4,16 @@ FastAPI service that loads the trained **model bundle** (`../models/`, built by
 `sentinel-wm bundle`) and turns incoming traffic into per-horizon
 attack-progression forecasts **with explanations and MITRE ATT&CK phase mapping**.
 
-The MVP serves the **SENTINEL-WM world model** (self-ensemble: direct head +
-K-step Monte-Carlo rollout + snapshots). It reuses the research package end to
-end — `preprocessing.clean_flow_frame` → `state_windows.build_state_windows` →
-persisted `RobustScaler` → `forward_sim.simulate_anchor`.
+It serves **SENTINEL-WM (system)** — the world model (direct head + K-step MC
+rollout + snapshots) whose per-horizon P(attack) is blended (validation-tuned
+weight from `bundle.json`) with three decorrelated sequence nets (`tcn`, `lstm`,
+`gru`) for the sharpest detection. The **forecast narrative** — `attack_prob`
+with its 95 % CI, progression state, ATT&CK phase — stays the world model's; the
+blended value lands in `detection_prob` and drives the alert / lead-time. Set
+`SENTINEL_SERVE_MODE=world_model` to skip the members. Pipeline reuses the
+research package: `preprocessing.clean_flow_frame` →
+`state_windows.build_state_windows` → persisted `RobustScaler` →
+`forward_sim.simulate_anchor` (+ member blend).
 
 ## Run
 
@@ -79,6 +85,8 @@ tests/                 pytest (random-bundle fixture) + ws_smoke.py
 
 ## Not in the MVP (see the plan)
 
-PCAP ingestion (Phase 2), the `SENTINEL-WM (system)` blend / GAT (needs per-window
-host graphs), auth, Redis. Job execution is an in-process thread pool — swap for a
-process pool or a queue if you add GIL-bound job kinds or horizontal scale.
+PCAP ingestion (Phase 2), the GAT member of the blend (needs per-window host
+graphs as a side input), auth, Redis. The `SENTINEL-WM (system)` blend with
+`tcn`/`lstm`/`gru` **is** wired in (`SENTINEL_SERVE_MODE`). Job execution is an
+in-process thread pool — swap for a process pool or a queue if you add GIL-bound
+job kinds or horizontal scale.

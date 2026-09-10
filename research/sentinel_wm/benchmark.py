@@ -196,6 +196,7 @@ def _score_world_model(seq: Dict, te_mask, device="cpu"):
             out.append((sysp, progs, dict(
                 family="system",
                 kind=f"WM self-ens x{best_w:.2f} + [{'+'.join(members)}]",
+                blend_weight=float(best_w), members=list(members),
                 threshold=thr_sys, params=n_params, infer_ms=infer_ms)))
     return out
 
@@ -252,6 +253,9 @@ def _metrics_row(name: str, probs_k, prog_k, meta, seq, te_mask, cfg) -> Dict:
         median_lead_time_s=lt["median_lead_time_s"],
         detection_rate=lt["detection_rate"], false_alarm_rate=lt["false_alarm_rate"],
         n_episodes=lt["n_episodes"], n_episodes_warned=lt["n_episodes_warned"])
+    if meta.get("blend_weight") is not None:               # SENTINEL-WM (system)
+        row["blend_weight"] = round(float(meta["blend_weight"]), 4)
+        row["members"] = list(meta.get("members", []))
     for r in per_h:
         row[f"f1_k{r['k']}"] = round(r["f1"], 4)
         row[f"auroc_k{r['k']}"] = round(r["auroc"], 4)

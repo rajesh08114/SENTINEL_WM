@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     bundle_dir: Path = Field(default=_HERE.parent / "models",
                              validation_alias="SENTINEL_WM_MODEL_DIR")
     device: str = "cpu"
+    # "auto" (system blend if the bundle has the member models, else world_model),
+    # "system" (force blend), "world_model" (world model only)
+    serve_mode: str = "auto"
     max_sync_flows: int = 20_000
     mc_samples: int = 50
     workers: int = 2

@@ -10,6 +10,25 @@ def test_meta(client):
     assert m["history_windows"] == 12 and m["horizon_steps"] == 6
     assert m["feature_dim"] == len(m["feature_names"])
     assert m["progression_states"][0] == "NORMAL"
+    # the tiny bundle ships tcn/lstm/gru -> the system blend must be active
+    assert m["serve_mode"] == "system"
+    assert set(m["blend_members"]) == {"tcn", "lstm", "gru"}
+    assert m["blend_weight"] is not None
+
+
+def test_forecast_csv_system_blend(client, synth_csv_bytes):
+    r = client.post("/forecast/csv",
+                    files={"file": ("flows.csv", synth_csv_bytes, "text/csv")})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["meta"]["model"] == "SENTINEL-WM (system)"
+    a = body["anchors"][0]
+    assert a["detection_model"] == "SENTINEL-WM (system)"
+    assert "max_detection_prob" in a
+    for h in a["horizon"]:
+        assert "detection_prob" in h and 0.0 <= h["detection_prob"] <= 1.0
+        # the WM rollout narrative is still present
+        assert "attack_ci" in h and h["attck"]["kill_chain_phase"]
 
 
 def test_health_ok(client):

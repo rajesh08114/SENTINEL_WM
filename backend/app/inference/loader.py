@@ -32,6 +32,11 @@ class Engine:
     alert_threshold: float
     device: str
     manifest: dict = field(default_factory=dict)
+    # SENTINEL-WM (system) blend: the member predictors + val-tuned weight.
+    # Empty -> the backend serves the raw world model only.
+    members: list = field(default_factory=list)          # [(name, _TorchPredictor)]
+    blend_weight: float = 1.0
+    serve_mode: str = "world_model"                       # "world_model" | "system"
 
 
 @lru_cache
@@ -76,13 +81,36 @@ def get_engine() -> Engine:
     L = int(ckpt["sequence"]["L"])
     K = int(ckpt["sequence"]["K"])
     F = int(ckpt["config"]["n_features"])
+
+    # ---- SENTINEL-WM (system): load the blend members if present ----------
+    members: list = []
+    blend_w = float(manifest.get("system_blend_weight", 0.5))
+    want_system = settings.serve_mode in ("system", "auto")
+    if want_system:
+        try:
+            from sentinel_wm import registry
+            for nm in manifest.get("system_members", ["tcn", "lstm", "gru"]):
+                try:
+                    members.append((nm, registry.load_predictor(nm, device)))
+                except Exception as e:                       # pragma: no cover
+                    print(f"[loader] system member {nm} unavailable: {e}")
+        except Exception as e:                               # pragma: no cover
+            print(f"[loader] registry unavailable: {e}")
+    serve_mode = "system" if members else "world_model"
+    if settings.serve_mode == "system" and not members:
+        print("[loader] serve_mode=system requested but no member models in the "
+              "bundle - falling back to world_model")
+
     eng = Engine(
         model=model, ckpt=ckpt, scaler=scaler, feat_cols=feat_cols,
         explainer=explainer, L=L, K=K, n_features=F,
         window_seconds=int(C.CONFIG.window.window_seconds),
         states=list(C.PROGRESSION_STATES),
-        alert_threshold=float(ckpt.get("alert_threshold", 0.7)),
+        alert_threshold=float(manifest.get("system_threshold")
+                              or ckpt.get("alert_threshold", 0.7)),
         device=device, manifest=manifest,
+        members=members, blend_weight=blend_w if members else 1.0,
+        serve_mode=serve_mode,
     )
 
     # warm pass so the first real request is not cold
@@ -93,6 +121,7 @@ def get_engine() -> Engine:
     except Exception as e:                                   # pragma: no cover
         print(f"[loader] warm pass failed (non-fatal): {e}")
 
-    print(f"[loader] engine ready: L={L} K={K} F={F} device={device} "
-          f"bundle={bundle}")
+    print(f"[loader] engine ready: mode={eng.serve_mode} "
+          f"members={[n for n, _ in members]} blend_w={eng.blend_weight:.2f} "
+          f"L={L} K={K} F={F} device={device} bundle={bundle}")
     return eng

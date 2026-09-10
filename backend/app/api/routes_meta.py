@@ -27,6 +27,9 @@ def meta() -> MetaResponse:
         window_seconds=eng.window_seconds,
         progression_states=eng.states, feature_names=eng.feat_cols,
         alert_threshold=eng.alert_threshold, device=eng.device,
+        serve_mode=eng.serve_mode,
+        blend_members=[n for n, _ in eng.members],
+        blend_weight=round(eng.blend_weight, 3) if eng.members else None,
         bundle=eng.manifest,
     )
 

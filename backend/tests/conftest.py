@@ -42,11 +42,31 @@ def tiny_bundle(tmp_path_factory) -> str:
     with open(dst / "state_scaler.pkl", "wb") as fh:
         pickle.dump({"scaler": sc, "feature_names": list(STATE_FEATURE_COLS)}, fh)
 
+    # random-weight blend members so the SENTINEL-WM (system) path is exercised
+    from sentinel_wm.nn_zoo import build_nn_model
+    nn_dir = dst / "models" / "nn"
+    nn_dir.mkdir(parents=True, exist_ok=True)
+    for kind in ("tcn", "lstm", "gru"):
+        mm = build_nn_model(kind, F, 12, C.CONFIG)
+        torch.save(dict(state_dict=mm.state_dict(), kind=kind, family="nn",
+                        n_features=F, sequence={"L": 12, "K": 6},
+                        alert_threshold=0.5, feature_names=list(STATE_FEATURE_COLS)),
+                   nn_dir / f"{kind}.pt")
+        (nn_dir / f"{kind}.meta.json").write_text(json.dumps(
+            {"name": kind, "kind": kind, "family": "nn", "threshold": 0.5,
+             "params": sum(p.numel() for p in mm.parameters()), "metrics": {}}))
+
+    os.environ["SENTINEL_WM_MODEL_DIR"] = str(dst)
+    from sentinel_wm import registry
+    registry.build_registry(verbose=False, base_dir=str(dst))
+
     (dst / "bundle.json").write_text(json.dumps(
         {"created": "test", "git_sha": "test", "L": 12, "K": 6, "n_features": F,
          "window_seconds": 10, "encoder": C.CONFIG.model.encoder,
          "alert_threshold": 0.5, "progression_states": list(C.PROGRESSION_STATES),
-         "snapshots": 0, "classical_models": 0, "registry": ["SENTINEL-WM"]}))
+         "snapshots": 0, "classical_models": 0, "registry": ["SENTINEL-WM"],
+         "system_members": ["tcn", "lstm", "gru"], "system_blend_weight": 0.5,
+         "system_threshold": 0.5}))
     return str(dst)
 
 

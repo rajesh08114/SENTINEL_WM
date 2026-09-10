@@ -120,7 +120,25 @@ def assemble_bundle(dst: Optional[str] = None, verbose: bool = True) -> dict:
         snapshots=len(ck["snapshots"]),
         classical_models=n_models,
         registry=sorted(reg.keys()),
+        # SENTINEL-WM (system): the members + val-tuned blend weight + threshold
+        # from the most recent benchmark, so the backend can serve the blend.
+        system_members=list(getattr(C.CONFIG.train, "system_members", ())),
+        system_blend_weight=0.5, system_threshold=None,
     )
+    bpath = os.path.join(C.research_dir(), "benchmarks", "benchmark.json")
+    if os.path.exists(bpath):
+        try:
+            brows = json.load(open(bpath)).get("rows", [])
+            srow = next((r for r in brows if r.get("model") == "SENTINEL-WM (system)"), None)
+            if srow:
+                manifest["system_blend_weight"] = float(srow.get("blend_weight", 0.5))
+                manifest["system_threshold"] = srow.get("threshold")
+                if srow.get("members"):
+                    manifest["system_members"] = list(srow["members"])
+                manifest["system_metrics"] = {k: srow.get(k) for k in
+                                              ("pr_auc", "f1_best", "f1", "auroc")}
+        except Exception as e:                              # pragma: no cover
+            print(f"[bundle] could not read system blend from benchmark.json: {e}")
     with open(os.path.join(dst, "bundle.json"), "w") as fh:
         json.dump(manifest, fh, indent=2, default=float)
 

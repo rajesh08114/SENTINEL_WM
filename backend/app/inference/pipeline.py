@@ -143,7 +143,7 @@ def _summarise(anchors: list[dict], thr: float) -> dict:
         return {"n_alerts": 0, "max_attack_prob": 0.0, "phases": []}
     phases, mx, n_alert = set(), 0.0, 0
     for a in anchors:
-        mx = max(mx, a["max_attack_prob"])
+        mx = max(mx, a.get("max_detection_prob", a["max_attack_prob"]))
         n_alert += int(a["alert"])
         for h in a["horizon"]:
             ph = h["attck"]["kill_chain_phase"]
@@ -176,12 +176,56 @@ def forecast(df: pd.DataFrame, family_hint: Optional[str] = None,
             feature_vec=X[i][-1], explainer=explainer)
         anchors.append(res)
 
+    used_model = "SENTINEL-WM"
+    if eng.members and anchors:
+        used_model = "SENTINEL-WM (system)"
+        _apply_system_blend(anchors, X, DT, eng)
+
     return {
         "meta": {"n_flows": n_flows, "n_windows": int(len(sw)),
                  "n_anchors": len(anchors), "window_seconds": eng.window_seconds,
                  "history_windows": eng.L, "horizon_steps": eng.K,
-                 "feature_dim": eng.n_features,
+                 "feature_dim": eng.n_features, "model": used_model,
+                 "blend_weight": (round(eng.blend_weight, 3)
+                                  if used_model.endswith("(system)") else None),
                  "family_hint": family_hint or "BENIGN"},
         "summary": _summarise(anchors, eng.alert_threshold),
         "anchors": anchors,
     }
+
+
+def _apply_system_blend(anchors: list[dict], X, DT, eng: Engine) -> None:
+    """Blend the val-tuned SENTINEL-WM (system) probability onto each anchor.
+
+    The world-model rollout (attack_prob + 95% CI, progression state,
+    progression_dist, ATT&CK phase) is kept as the forecast narrative; the
+    sharper blended probability drives `detection_prob` and the alert / lead-time.
+    """
+    K = eng.K
+    wm = np.array([[h["attack_prob"] for h in a["horizon"]] for a in anchors],
+                  dtype=np.float32)                          # [N, K]
+    mps = []
+    for _nm, pred in eng.members:
+        try:
+            mps.append(np.asarray(pred.predict(X, DT)["attack_prob_k"], np.float32))
+        except Exception:                                    # pragma: no cover
+            pass
+    if not mps:
+        return
+    member = np.mean(mps, axis=0)                            # [N, K]
+    w = float(eng.blend_weight)
+    sysp = w * wm + (1.0 - w) * member                       # [N, K]
+    thr = eng.alert_threshold
+    Wsec = eng.window_seconds
+    for i, a in enumerate(anchors):
+        first = None
+        for k, h in enumerate(a["horizon"]):
+            p = float(sysp[i, k])
+            h["detection_prob"] = round(p, 6)
+            if first is None and p >= thr:
+                first = k + 1
+        a["detection_model"] = "SENTINEL-WM (system)"
+        a["max_detection_prob"] = float(sysp[i].max())
+        a["alert"] = first is not None
+        a["first_alert_k"] = first
+        a["lead_time_seconds"] = 0 if first is None else (K - first + 1) * Wsec
