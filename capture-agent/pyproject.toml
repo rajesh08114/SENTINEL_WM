@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sentinel-capture"
+version = "0.1.0"
+description = "Live network-capture agent for SENTINEL-WM: sniff a local interface, assemble bidirectional flows, stream them to the backend for real-time forecasting."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+# Runs on the HOST (Npcap + Administrator), never in the backend container.
+# It only produces CICFlowMeter-schema flow rows and ships them over a WebSocket.
+dependencies = [
+    "scapy>=2.5",
+    "psutil>=5.9",
+    "websockets>=12",
+    "typer>=0.9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+sentinel-capture = "sentinel_capture.cli:app"
+
+[tool.setuptools]
+packages = ["sentinel_capture"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
