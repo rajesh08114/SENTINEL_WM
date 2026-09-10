@@ -21,6 +21,8 @@ this time, because the leakage fixes changed the winsorisation (now fit on train
 days only), the split (leakage-safe `stratified`), and sequence construction
 (span-boundary purge). See `docs/technical_reference.md` Part 1.9.
 
+Run from the **repo root** (the folder holding `data/`, `artifacts/`, `runs/`).
+
 **Git Bash / Linux / macOS**
 ```bash
 cd /path/to/SIH
@@ -28,18 +30,20 @@ rm -f artifacts/clean_flows.parquet artifacts/clean_flows_aug.parquet \
       artifacts/state_windows.parquet artifacts/sequences.npz \
       artifacts/graph_windows.npz artifacts/state_scaler.pkl \
       artifacts/graph_node_scaler.pkl artifacts/world_model.pt
-rm -rf research/models research/benchmarks
+rm -rf runs/models runs/benchmarks models
 ```
 
 **PowerShell**
 ```powershell
-cd C:\Users\chall\OneDrive\Desktop\SIH
+cd C:\path\to\SIH
 Remove-Item artifacts\clean_flows.parquet, artifacts\clean_flows_aug.parquet, `
             artifacts\state_windows.parquet, artifacts\sequences.npz, `
             artifacts\graph_windows.npz, artifacts\state_scaler.pkl, `
             artifacts\graph_node_scaler.pkl, artifacts\world_model.pt -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force research\models, research\benchmarks -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force runs\models, runs\benchmarks, models -ErrorAction SilentlyContinue
 ```
+
+Then `cd research` for the `python -m sentinel_wm.…` commands below.
 
 > The leakage-free split yields ~6 % train / ~6 % val / ~3 % test positive
 > **sequence** rate (the old ~11 % double-counted boundary sequences). Test
@@ -74,11 +78,11 @@ split boundary is dropped (`SequenceConfig.purge_boundary_sequences`), and
 families (e.g. DoS GoldenEye) land in only 1–2 splits — a real dataset property,
 shown by the per-family table.
 
-**Secondary — zero-shot family/day holdout** (`research_zeroshot/`). Whole
+**Secondary — zero-shot family/day holdout** (`runs_zeroshot/`). Whole
 attack families never appear in training:
 
 ```bash
-python -m sentinel_wm.research all --split family --outdir research_zeroshot
+python -m sentinel_wm.research all --split family --outdir runs_zeroshot
 # or  --split day   (Mon-Wed / Thu / Fri)
 ```
 
@@ -88,7 +92,7 @@ Then re-run the primary report so it folds in the holdout numbers:
 python -m sentinel_wm.research report
 ```
 
-`step_report` reads `research_zeroshot/benchmarks/benchmark.json` and appends a
+`step_report` reads `runs_zeroshot/benchmarks/benchmark.json` and appends a
 "## 3. Zero-shot generalisation" section (F1 ≈ 0.3–0.5 there is expected — that
 is the point).
 
@@ -106,16 +110,16 @@ the flag is on. `research all` runs the `flowaug` step first when the flag is se
 
 ## 4. What to check / send back for analysis
 
-* `research/benchmarks/benchmark.md` ← ranked scoreboard + per-attack-family block
-* `research/benchmarks/per_family.csv` ← full (model × family) matrix
-* `research/data_profile/split_family_windows.csv` ← proves family coverage; only
+* `runs/benchmarks/benchmark.md` ← ranked scoreboard + per-attack-family block
+* `runs/benchmarks/per_family.csv` ← full (model × family) matrix
+* `runs/data_profile/split_family_windows.csv` ← proves family coverage; only
   Heartbleed / Infiltration / SQL-Injection should be all-zero
-* `research/data_profile/split_summary.csv` ← per-split window counts + attack frac
-* `research/reports/RESEARCH_REPORT.md` and `technical_reference_addendum.md`
+* `runs/data_profile/split_summary.csv` ← per-split window counts + attack frac
+* `runs/reports/RESEARCH_REPORT.md` and `technical_reference_addendum.md`
 * the run log tail — look for `[seq] leakage check OK ... span-pure`,
   `[graph] node scaler fit on N/W real-train windows`, and the per-model
   `TEST …` lines
-* if you ran the zero-shot benchmark: `research_zeroshot/benchmarks/benchmark.md`
+* if you ran the zero-shot benchmark: `runs_zeroshot/benchmarks/benchmark.md`
 
 Expect the leakage-free positive-sequence rate to read ~6 % train / ~6 % val /
 ~3 % test in `split_summary` — the pre-fix ~11 % double-counted boundary

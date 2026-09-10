@@ -22,13 +22,41 @@ from typing import List
 # -----------------------------------------------------------------------------
 # 1. Paths
 # -----------------------------------------------------------------------------
-# ROOT = repo root (the parent of this package directory). Override with the
-# SENTINEL_WM_ROOT environment variable if the package is installed elsewhere.
+# ROOT = the repo root that holds `data/`, `artifacts/`, `runs/`, `models/`.
+# The package lives at <ROOT>/research/sentinel_wm/, so ROOT is two levels up
+# from this file - but resolve it robustly (walk up for a repo marker) so an
+# editable install or a moved checkout still finds it. Override with
+# SENTINEL_WM_ROOT.
 PKG_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.environ.get("SENTINEL_WM_ROOT", os.path.dirname(PKG_DIR))
+
+
+def _find_root() -> str:
+    env = os.environ.get("SENTINEL_WM_ROOT")
+    if env:
+        return os.path.abspath(env)
+    d = PKG_DIR
+    for _ in range(6):
+        d = os.path.dirname(d)
+        # a directory that carries repo-level markers (data/ or .git/ or the
+        # sibling research/ + backend/ layout)
+        if (os.path.isdir(os.path.join(d, "data"))
+                or os.path.isdir(os.path.join(d, ".git"))
+                or os.path.isdir(os.path.join(d, "backend"))):
+            return d
+    # fallback: two up from the package dir (<ROOT>/research/sentinel_wm)
+    return os.path.dirname(os.path.dirname(PKG_DIR))
+
+
+ROOT = _find_root()
 DATA_DIR = os.path.join(ROOT, "data")
 ARTIFACTS = os.path.join(ROOT, "artifacts")
 os.makedirs(ARTIFACTS, exist_ok=True)
+
+# A portable, self-contained model bundle assembled by `sentinel-wm bundle`
+# (see sentinel_wm/bundle.py). The serving backend reads ONLY from here, so it
+# depends on neither the research working tree nor `runs/`. Falls back to
+# <ROOT>/models when SENTINEL_WM_MODEL_DIR is unset.
+MODEL_DIR = os.environ.get("SENTINEL_WM_MODEL_DIR") or os.path.join(ROOT, "models")
 
 # Raw labelled unified-flow CSVs produced by extraction/label_mapping.ipynb.
 # `unified_AllDays_labeled.csv` holds all 5 CIC-IDS-2017 days (Mon-Fri) in one
@@ -56,10 +84,17 @@ for _d in (BASELINE_DIR, REPORT_DIR):
     os.makedirs(_d, exist_ok=True)
 
 
+# Name of the generated-output folder under ROOT. It is NOT `research/` any more:
+# `<ROOT>/research/` is now the ML SOURCE tree (package + notebooks + extraction),
+# so benchmark artefacts land in `<ROOT>/runs/` to avoid the collision.
+RUN_DIR_NAME = os.environ.get("SENTINEL_WM_RESEARCH_DIR_NAME", "runs")
+ZEROSHOT_DIR_NAME = RUN_DIR_NAME + "_zeroshot"
+
+
 def research_dir() -> str:
-    """`<ROOT>/research` unless SENTINEL_WM_RESEARCH_DIR overrides it (used to
-    write a zero-shot benchmark run into research_zeroshot/ without clobbering)."""
-    return os.environ.get("SENTINEL_WM_RESEARCH_DIR") or os.path.join(ROOT, "research")
+    """`<ROOT>/runs` unless SENTINEL_WM_RESEARCH_DIR overrides it (used to write a
+    zero-shot benchmark run into runs_zeroshot/ without clobbering the primary)."""
+    return os.environ.get("SENTINEL_WM_RESEARCH_DIR") or os.path.join(ROOT, RUN_DIR_NAME)
 
 
 # -----------------------------------------------------------------------------

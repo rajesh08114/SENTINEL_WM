@@ -46,8 +46,7 @@ def set_output_root(root: str):
         os.makedirs(d, exist_ok=True)
 
 
-set_output_root(os.environ.get("SENTINEL_WM_RESEARCH_DIR",
-                               os.path.join(C.ROOT, "research")))
+set_output_root(C.research_dir())
 
 
 # -----------------------------------------------------------------------------
@@ -177,7 +176,7 @@ def _member_probs(seq, mask, names, device="cpu"):
     """per-horizon P(attack) for a set of already-trained models, on `mask`."""
     import glob, pickle
     from sentinel_wm.baselines import _proba
-    cdir = os.path.join(C.ROOT, "research", "models", "classical")
+    cdir = os.path.join(C.research_dir(), "models", "classical")
     Xseq = seq["X"][mask].reshape(int(mask.sum()), -1)
     got = []
     for nm in names:

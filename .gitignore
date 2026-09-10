@@ -6,11 +6,26 @@
 artifacts/*
 !artifacts/.gitkeep
 
-# --- research/ : commit the PROOF (reports, benchmark CSVs, figures, meta,
-#     registry, logs, ATT&CK CSV); ignore the regenerable heavy binaries.
-research/models/**/*.pkl
-research/models/**/*.pt
-research/simulations/forward_sim_test.json
+# --- runs/ : generated benchmark study (renamed from ./research/). Commit the
+#     PROOF (reports, benchmark CSVs, figures, meta, registry, logs); ignore the
+#     regenerable heavy binaries.
+runs/models/**/*.pkl
+runs/models/**/*.pt
+runs/simulations/forward_sim_test.json
+runs_zeroshot/
+
+# --- models/ : the portable deploy bundle (`sentinel-wm bundle`) - fully regenerable
+/models/
+
+# --- backend / frontend runtime
+backend/data/
+backend/.env
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+*.sqlite
+*.sqlite3
+*.db
 
 # --- datasets (too large / redistribution-restricted; see data/README.md)
 data/*

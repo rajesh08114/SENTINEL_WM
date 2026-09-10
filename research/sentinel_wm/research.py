@@ -35,10 +35,12 @@ R = ""
 DIRS = {}
 
 
-def _set_output_root(name: str = "research"):
-    """point research/ (and benchmark's dirs) at `<ROOT>/<name>` - lets a
-    zero-shot run write to research_zeroshot/ without clobbering the primary."""
+def _set_output_root(name: str = None):
+    """point the generated-output dir (and benchmark's dirs) at `<ROOT>/<name>`
+    - lets a zero-shot run write to `<runs>_zeroshot/` without clobbering the
+    primary. Default name = C.RUN_DIR_NAME ("runs")."""
     global R, DIRS
+    name = name or C.RUN_DIR_NAME
     R = os.path.join(C.ROOT, name)
     DIRS = {k: os.path.join(R, k) for k in
             ("data_profile", "models", "benchmarks", "figures",
@@ -52,7 +54,7 @@ def _set_output_root(name: str = "research"):
     _b.set_output_root(R)
 
 
-_set_output_root(os.environ.get("SENTINEL_WM_RESEARCH_DIR_NAME", "research"))
+_set_output_root(os.environ.get("SENTINEL_WM_RESEARCH_DIR_NAME", C.RUN_DIR_NAME))
 
 
 def _mpl():
@@ -358,9 +360,9 @@ def step_report(verbose=True):
         md.append("Full matrix: [`benchmarks/per_family.csv`](../benchmarks/per_family.csv).")
 
     # ---- 2c. zero-shot generalisation (secondary benchmark) -------------
-    zpath = os.path.join(C.ROOT, "research_zeroshot", "benchmarks", "benchmark.json")
-    if os.path.exists(zpath) and os.path.abspath(R) != os.path.abspath(
-            os.path.join(C.ROOT, "research_zeroshot")):
+    zdir = os.path.join(C.ROOT, C.ZEROSHOT_DIR_NAME)
+    zpath = os.path.join(zdir, "benchmarks", "benchmark.json")
+    if os.path.exists(zpath) and os.path.abspath(R) != os.path.abspath(zdir):
         zb = json.load(open(zpath))
         zrows = sorted(zb.get("rows", []), key=lambda r: -(r.get("pr_auc") or 0))
         zmode = zb.get("split_mode") or "family/day"
@@ -370,7 +372,7 @@ def step_report(verbose=True):
                "these numbers measure detection of **previously unseen** attacks, "
                "not the headline. F1 in the 0.3-0.5 band is expected and is the "
                "point of the experiment. Regenerate with "
-               "`python -m sentinel_wm.research all --split family --outdir research_zeroshot`.",
+               f"`python -m sentinel_wm.research all --split family --outdir {C.ZEROSHOT_DIR_NAME}`.",
                "", "| Model | Family | PR-AUC | F1 | F1* | AUROC |",
                "|---|---|---|---|---|---|"]
         for r in zrows[:12]:
@@ -379,8 +381,8 @@ def step_report(verbose=True):
             md.append(f"| {r['model']} | {r.get('family','')} | {pr_s} | "
                       f"{r.get('f1',0):.3f} | {fb_s} | {r.get('auroc',0):.3f} |")
         md.append("")
-        md.append("Full table: [`../research_zeroshot/benchmarks/benchmark.md`]"
-                  "(../../research_zeroshot/benchmarks/benchmark.md).")
+        md.append(f"Full table: [`../../{C.ZEROSHOT_DIR_NAME}/benchmarks/benchmark.md`]"
+                  f"(../../{C.ZEROSHOT_DIR_NAME}/benchmarks/benchmark.md).")
 
     wm = next((r for r in rows if r["model"] == "SENTINEL-WM"), None)
     top = next((r for r in rows_sorted
@@ -540,14 +542,14 @@ def main():
                    choices=["auto", "stratified", "block", "day", "family",
                             "episode_chrono", "chronological"],
                    help="override SplitConfig.mode for this run (retrains everything)")
-    p.add_argument("--outdir", default="research",
-                   help="output folder under repo root (e.g. research_zeroshot "
-                        "for the zero-shot holdout benchmark)")
+    p.add_argument("--outdir", default=C.RUN_DIR_NAME,
+                   help=f"output folder under repo root (default {C.RUN_DIR_NAME}; "
+                        f"e.g. {C.ZEROSHOT_DIR_NAME} for the zero-shot holdout benchmark)")
     a = p.parse_args()
 
     if a.split:
         C.CONFIG.split.mode = a.split
-    if a.outdir and a.outdir != "research":
+    if a.outdir and a.outdir != C.RUN_DIR_NAME:
         _set_output_root(a.outdir)
 
     if a.step == "all":

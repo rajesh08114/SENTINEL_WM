@@ -7,33 +7,38 @@ from traffic telemetry and **forecasts attacker progression K windows ahead**,
 with a calibrated probability, a MITRE ATT&CK-aligned phase (with an explicit
 confidence), and a feature-level explanation for every prediction.
 
-No Flask, no Streamlit, no cloud. Everything is a terminal command or a notebook.
+This guide covers the **`research/`** half — the offline ML pipeline (CLI +
+notebooks, no web UI). The serving application (FastAPI + Next.js) is
+[`../backend/`](../backend) and [`../frontend/`](../frontend).
 
 ---
 
 ## 0. TL;DR
 
 ```bash
-pip install -e ".[benchmark]"      # core + xgboost + lightgbm + shap (all optional)
+cd research
+pip install -e ".[benchmark]"                # core + xgboost + lightgbm + shap (all optional)
 
 # the whole study: data -> every model -> benchmark -> explain -> simulate
 python -m sentinel_wm.research all           # ~30-45 min on a GPU
 python -m sentinel_wm.research all --quick   # small epochs, ~10 min
 
-# lighter: phase runner that ends at the benchmark
-python -m sentinel_wm.cli all
+python -m sentinel_wm.cli all                # lighter: phase runner, ends at the benchmark
+sentinel-wm bundle ../models                 # assemble the deploy bundle for backend/
 ```
 
-`research all` populates `research/` (models, benchmarks, figures, explainability,
-simulations, `reports/RESEARCH_REPORT.md`). Pipeline working files stay in
-`artifacts/` (parquet, `world_model.pt`, `graph_windows.npz`, scaler, reports).
+`research all` populates **`../runs/`** (models, benchmarks, figures,
+explainability, simulations, `reports/RESEARCH_REPORT.md`). Pipeline working files
+stay in **`../artifacts/`** (parquet, `world_model.pt`, `graph_windows.npz`,
+scaler). The portable **`../models/`** bundle is what the backend loads.
 
 ---
 
 ## 1. What is in this repo
 
 ```
-sentinel_wm/                         the Python package (`pip install -e .`)
+research/                            the ML workspace (this guide)
+ sentinel_wm/                        the Python package (`cd research && pip install -e .`)
   config.py              hyper-parameters, paths, LOCKED feature tiers
   preprocessing.py       PHASE 1  raw unified CSV  -> artifacts/clean_flows.parquet
   state_windows.py       PHASE 2  clean flows      -> artifacts/state_windows.parquet
@@ -50,28 +55,25 @@ sentinel_wm/                         the Python package (`pip install -e .`)
   explain.py             PHASE 6  SHAP (or fallback) + attention + gradient saliency
   benchmark.py           unified scoreboard: every saved model, same test anchors
   registry.py            one uniform loader for every saved model (for the app)
-  research.py            orchestrator -> the research/ folder
+  research.py            orchestrator -> the runs/ folder
+  bundle.py              `sentinel-wm bundle` -> the portable ../models/ deploy bundle
   evaluate.py            back-compat shim -> benchmark.py
   metrics.py             shared metric fns (F1/FPR/AUROC, Brier/ECE, Mean Lead Time)
   cli.py                 the offline command-line interface (all of the above)
 
-extraction/
+ extraction/
   extractor.py           PCAP -> unified flow+packet CSV via tshark (standalone)
   label_mapping.ipynb    maps official CIC-IDS-2017 labels onto the extractor output
 
-notebooks/
-  00_complete_pipeline.ipynb         one notebook, every phase end to end
-  01_data_preprocessing.ipynb        PHASE 1 walkthrough
-  02_sequence_generation.ipynb       PHASE 2: state windows, ATT&CK mapping, split
-  03_model_zoo_and_benchmark.ipynb   train & compare every model
-  04_explainability.ipynb            SHAP / attention / gradient
-  05_forward_simulation.ipynb        K-step rollouts + ATT&CK stage forecast
+ notebooks/               00-05 phase notebooks (run from research/notebooks/)
+ pyproject.toml  requirements.txt  RUN.md  README.md
 
-docs/     proposal.md  plan_validation.md  guide.md  problem_statement.pdf
-data/     input CSVs (gitignored) - see data/README.md
-research/ full study output (gitignored) - see research/README.md
-artifacts/ pipeline working files (gitignored)
-pyproject.toml  requirements.txt  README.md  .gitignore  .gitattributes
+docs/        proposal.md  plan_validation.md  guide.md  technical_reference.md
+data/        input CSVs (gitignored) - see data/README.md
+artifacts/   pipeline working files (gitignored)
+runs/        generated benchmark study (gitignored) - see research/README.md
+models/      the deploy bundle the backend loads (gitignored; `sentinel-wm bundle`)
+backend/  frontend/   the serving application
 ```
 
 Input expected: a `unified_*_labeled.csv` under `data/`, listed in
@@ -99,15 +101,15 @@ Input expected: a `unified_*_labeled.csv` under `data/`, listed in
         ▼
  artifacts/sequences.npz  +  artifacts/state_scaler.pkl
         │
-        ├── baselines.py    classical zoo (10 models x window/__seq)   -> research/models/classical/
-        ├── nn_zoo.py        MLP / LSTM / GRU / TCN  (via nn_common)     -> research/models/nn/
-        ├── gat.py           from-scratch Graph Attention Network       -> research/models/nn/gat.pt
+        ├── baselines.py    classical zoo (10 models x window/__seq)   -> runs/models/classical/
+        ├── nn_zoo.py        MLP / LSTM / GRU / TCN  (via nn_common)     -> runs/models/nn/
+        ├── gat.py           from-scratch Graph Attention Network       -> runs/models/nn/gat.pt
         └── train.py         world model: Bi-GRU + attention + STN      -> artifacts/world_model.pt
                     │
                     ├── forward_sim.py   K-step MC rollout -> P(attack) timeline + ATT&CK
                     ├── explain.py        SHAP + attention + gradient saliency
-                    ├── benchmark.py      every model, same test anchors -> research/benchmarks/
-                    └── registry.py       research/models/registry.json  (uniform load_predictor)
+                    ├── benchmark.py      every model, same test anchors -> runs/benchmarks/
+                    └── registry.py       runs/models/registry.json  (uniform load_predictor)
 ```
 
 ### PHASE 1 — pre-processing
@@ -225,7 +227,7 @@ not installed) — each as **K independent binary classifiers** (one per horizon
 Class imbalance: `class_weight="balanced"` where the estimator supports it, else
 balanced `sample_weight`. A single alert threshold is FPR-calibrated on
 validation. Plus a `persistence` reference (`A_{t+k}=A_t`). Fitted estimators →
-`research/models/classical/<name>.pkl` (+ `.meta.json`); metrics →
+`runs/models/classical/<name>.pkl` (+ `.meta.json`); metrics →
 `artifacts/baselines/baseline_metrics.json`.
 
 ### PHASE 4b — neural sequence baselines
@@ -236,7 +238,7 @@ python -m sentinel_wm.cli nn --kinds mlp lstm gru tcn --epochs 50
 tensor and emit the SAME heads (`attack_logits_k [B,K]`, `prog_logits_k [B,K,S]`)
 as the world model, so `nn_common.train_nn` trains and scores them with the
 identical protocol (class-weighted BCE+CE, AdamW+cosine, early stop, FPR-calibrated
-threshold, checkpoint). Checkpoints → `research/models/nn/{mlp,lstm,gru,tcn}.pt`.
+threshold, checkpoint). Checkpoints → `runs/models/nn/{mlp,lstm,gru,tcn}.pt`.
 
 ### PHASE 4c — Graph Attention Network
 ```bash
@@ -249,7 +251,7 @@ padded to `N_max=32`, saved to `artifacts/graph_windows.npz` aligned to
 `state_windows.parquet`. `gat.py` runs a **from-scratch** GAT (masked additive
 attention, no `torch-geometric`) per window → GRU over the `L` window embeddings →
 the shared heads. Trains through `nn_common` via a `batch_forward` hook.
-Checkpoint → `research/models/nn/gat.pt`.
+Checkpoint → `runs/models/nn/gat.pt`.
 
 ### PHASE 4 — world model
 ```bash
@@ -312,19 +314,19 @@ Report → `artifacts/reports/explainability.json`.
 
 ### Benchmark + registry
 ```bash
-python -m sentinel_wm.cli benchmark          # -> research/benchmarks/*  + registry.json
+python -m sentinel_wm.cli benchmark          # -> runs/benchmarks/*  + registry.json
 ```
-`benchmark.py` discovers every model in `research/models/` + `artifacts/world_model.pt`,
+`benchmark.py` discovers every model in `runs/models/` + `artifacts/world_model.pt`,
 scores them all on the **same test anchors** with the same `metrics.py` code, and
 writes `benchmark_full.csv` (F1/P/R/FPR/AUROC/Brier/ECE/MLT/detection/params/
 infer-ms + `f1_k1..k6`), `per_horizon_f1.csv`, `leadtime.csv`, `benchmark.md`,
 `benchmark.json`, and figures (`horizon_f1`, `roc`, `pr`, `lead_time`).
-`registry.build_registry()` writes `research/models/registry.json` — the uniform
+`registry.build_registry()` writes `runs/models/registry.json` — the uniform
 index the serving app loads via `registry.load_predictor(name)`.
 
 ### The whole study
 ```bash
-python -m sentinel_wm.research all            # primary (stratified) -> research/
+python -m sentinel_wm.research all            # primary (stratified) -> runs/
 python -m sentinel_wm.research all --split family --outdir research_zeroshot   # zero-shot
 python -m sentinel_wm.research report         # fold the zero-shot section into RESEARCH_REPORT.md
 python -m sentinel_wm.research <step>         # rerun one stage
@@ -338,8 +340,8 @@ Steps: `flowaug`, `profile`, `baselines`, `worldmodel`, `nn`, `gat`, `benchmark`
 
 ## 3. How to read the results
 
-The live table is `research/benchmarks/benchmark.md`; the narrative with every
-claim linked to its file is `research/reports/RESEARCH_REPORT.md`. Regenerate
+The live table is `runs/benchmarks/benchmark.md`; the narrative with every
+claim linked to its file is `runs/reports/RESEARCH_REPORT.md`. Regenerate
 with `python -m sentinel_wm.research all`.
 
 What to look for (`stratified` split, all 5 days), ranked by **PR-AUC**:
@@ -357,7 +359,7 @@ What to look for (`stratified` split, all 5 days), ranked by **PR-AUC**:
 * Progression-state accuracy, Brier(k1), ECE(k1) are in the `*_metrics.json` and
   the benchmark CSV.
 
-**Per-attack-family breakdown** — `research/benchmarks/per_family.csv` +
+**Per-attack-family breakdown** — `runs/benchmarks/per_family.csv` +
 `benchmark.md` block scores each family against the shared benign background;
 families with < 8 positive test windows (Heartbleed / Infiltration / SQL-Injection)
 are reported as excluded, not failures.
@@ -417,10 +419,10 @@ Graph model: `graph_windows.N_MAX` (32) hosts/window, `N_NODE_FEAT` (14).
 | `'Label' column missing` | run `extraction/label_mapping.ipynb` first — the world model needs labelled flows |
 | `training split is empty` | wrong `SplitConfig`; the default `"stratified"` always yields all 3 splits |
 | rollout probs all ≈ 0.4-0.5 | retrain — an old checkpoint predates the shared-head loss fix |
-| `shap` / `xgboost` / `lightgbm` import errors | all optional; the zoo skips them, explain falls back. `pip install -e ".[benchmark]"` to enable |
+| `shap` / `xgboost` / `lightgbm` import errors | all optional; the zoo skips them, explain falls back. `cd research && pip install -e ".[benchmark]"` to enable |
 | CUDA OOM (esp. GAT) | `--device cpu`, or lower `graph_windows.N_MAX` / GAT `d_model` |
 | LightGBM "access violation" on Windows | already set `n_jobs=1`; if it still crashes it is skipped and the zoo continues |
-| `ModuleNotFoundError: sentinel_wm` | run `pip install -e .` from the repo root, or run notebooks from `notebooks/` (they self-bootstrap `sys.path`) |
+| `ModuleNotFoundError: sentinel_wm` | run `pip install -e ./research`, or run notebooks from `research/notebooks/` (they self-bootstrap `sys.path`) |
 | PCAP re-extraction | needs the `tshark` binary on PATH (install Wireshark) + `pip install scapy` |
 
 ---
