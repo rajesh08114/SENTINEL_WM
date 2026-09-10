@@ -23,7 +23,7 @@ attacker progression and support proactive cyber defence using World Models."*
 | **[`frontend/`](frontend/)** | a Next.js UI for uploads, live monitoring, and the forecast / explanation / ATT&CK views. |
 | `models/` | the portable model **bundle** the backend loads (`sentinel-wm bundle`); regenerable, git-ignored. |
 | `data/` · `artifacts/` · `runs/` | raw CSVs · pipeline working files · generated benchmark study. All git-ignored. |
-| `docs/` | [`guide.md`](docs/guide.md) (usage manual), [`technical_reference.md`](docs/technical_reference.md) (every model / loss / rollout / ATT&CK / leakage-control detail), [`proposal.md`](docs/proposal.md), [`plan_validation.md`](docs/plan_validation.md). |
+| `docs/` | [`guide.md`](docs/guide.md) (usage manual), [`system_architecture.md`](docs/system_architecture.md) (**SENTINEL-WM (system)** — every layer, param, forward/backward pass), [`technical_reference.md`](docs/technical_reference.md) (loss / rollout / ATT&CK / leakage-control detail), [`proposal.md`](docs/proposal.md), [`plan_validation.md`](docs/plan_validation.md). |
 
 ---
 

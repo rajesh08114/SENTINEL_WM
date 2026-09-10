@@ -315,6 +315,12 @@ with no architecture change.
 
 ## Part 3 — Model-by-model reference
 
+> For the **complete layer-by-layer architecture of `SENTINEL-WM (system)`** —
+> every module, exact parameter count, the forward and backward passes of all
+> four component networks and the blend — see
+> [`system_architecture.md`](system_architecture.md). This section is the
+> shorter cross-model summary.
+
 All models consume the **same** tensors from `artifacts/sequences.npz`:
 
 ```
