@@ -19,6 +19,17 @@ from app.settings import settings
 RING_MAX = 200
 
 
+def _observe(flows: int, seconds: float, n_forecasts: int) -> None:
+    """Best-effort metrics hook; no-op unless SENTINEL_METRICS + prometheus-client."""
+    try:
+        from app.api import routes_metrics as _m
+        _m.add_flows(flows)
+        for _ in range(n_forecasts):
+            _m.observe_forecast(seconds / max(1, n_forecasts))
+    except Exception:
+        pass
+
+
 class LiveSession:
     def __init__(self, sid: str, source_kind: str, params: dict,
                  *, windower: Any = None,
@@ -60,7 +71,9 @@ class LiveSession:
             return
         self.stats["flows_in"] += int(n)
         self.last_activity = time.time()
+        t0 = time.perf_counter()
         forecasts = await asyncio.to_thread(self._win.poll_ready)
+        _observe(int(n), time.perf_counter() - t0, len(forecasts or []))
         await self._emit(forecasts)
 
     async def _emit(self, forecasts: Iterable[dict]) -> None:

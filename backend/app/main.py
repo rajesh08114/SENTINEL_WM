@@ -7,7 +7,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app.logging import RequestIdMiddleware, configure_logging
 from app.settings import settings          # noqa: F401  (sets SENTINEL_WM_MODEL_DIR early)
+
+configure_logging(settings.log_json)
+_START = __import__("time").time()
 
 
 @asynccontextmanager
@@ -46,6 +50,7 @@ def create_app() -> FastAPI:
                 "with explanations and MITRE ATT&CK phase mapping.",
         lifespan=lifespan,
     )
+    app.add_middleware(RequestIdMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_list, allow_credentials=True,
@@ -60,6 +65,9 @@ def create_app() -> FastAPI:
     app.include_router(routes_live.router)
     app.include_router(routes_agent.router)
     app.include_router(ws_stream.router)
+    if settings.metrics:
+        from app.api import routes_metrics
+        app.include_router(routes_metrics.router)
     return app
 
 

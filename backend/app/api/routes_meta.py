@@ -1,23 +1,44 @@
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter
 
 from app.inference.loader import BundleContractError, BundleNotFound, get_engine
 from app.sentinel_infer.schema import PROGRESSION_STATES
 from app.schemas import HealthResponse, MetaResponse
+from app.settings import settings
 
 router = APIRouter(tags=["meta"])
 
 
+def _live_agent_detail() -> dict:
+    from app.agent.registry import REGISTRY
+    from app.live.session import MANAGER
+    active = [s for s in MANAGER.sessions.values() if s.state != "stopped"]
+    return {
+        "live": {"sessions": len(active), "max": MANAGER.max_sessions},
+        "agent": {"connected": bool(REGISTRY.all()), "count": len(REGISTRY.all())},
+    }
+
+
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
+    from app.main import _START
+    extra = {**_live_agent_detail(), "uptime_s": round(time.time() - _START, 1)}
     try:
-        get_engine()
-        return HealthResponse(status="ok", model_loaded=True)
+        eng = get_engine()
+        return HealthResponse(
+            status="ok", model_loaded=True,
+            bundle={"loaded": True, "serve_mode": eng.serve_mode, "L": eng.L,
+                    "K": eng.K, "n_features": eng.n_features},
+            **extra)
     except (BundleNotFound, BundleContractError) as e:
-        return HealthResponse(status="degraded", model_loaded=False, detail=str(e))
+        return HealthResponse(status="degraded", model_loaded=False, detail=str(e),
+                              bundle={"loaded": False}, **extra)
     except Exception as e:                                   # pragma: no cover
-        return HealthResponse(status="error", model_loaded=False, detail=str(e))
+        return HealthResponse(status="error", model_loaded=False, detail=str(e),
+                              **extra)
 
 
 @router.get("/meta", response_model=MetaResponse)

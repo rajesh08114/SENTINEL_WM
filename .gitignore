@@ -25,6 +25,9 @@ backend/.env
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+frontend/playwright-report/
+frontend/test-results/
+capture-agent/*.egg-info/
 *.sqlite
 *.sqlite3
 *.db
