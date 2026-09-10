@@ -1,0 +1,46 @@
+# SENTINEL-WM application stack.
+#   1. build the model bundle first:  cd research && python -m sentinel_wm.research all && sentinel-wm bundle ../backend/models
+#   2. docker compose up --build           ->  backend :8000  +  console :8080
+#
+# Live network capture runs on the HOST, not here (needs Npcap + Administrator):
+#   cd capture-agent && pip install -e . && sentinel-capture run --backend ws://localhost:8000
+name: sentinel-wm
+
+services:
+  backend:
+    build: ./backend          # self-contained; no research tree in the image
+    image: sentinel-wm-backend
+    ports:
+      - "8000:8000"
+    environment:
+      SENTINEL_WM_MODEL_DIR: /app/models
+      SENTINEL_DEVICE: cpu
+      SENTINEL_WORKERS: "2"
+      SENTINEL_MAX_SYNC_FLOWS: "20000"
+      SENTINEL_CORS_ORIGINS: "*"
+      SENTINEL_LIVE_MAX_SESSIONS: "4"
+      SENTINEL_SYNTH_MAX_RATE: "500"
+      SENTINEL_AGENT_ENABLED: "true"
+      SENTINEL_LOG_JSON: "false"
+    volumes:
+      - ./backend/models:/app/models:ro   # the bundle - `sentinel-wm bundle`, no image rebuild
+      - backend_jobs:/app/data/jobs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build: ./frontend        # Next.js static export behind nginx
+    image: sentinel-wm-frontend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend
+    # The console is a static bundle — it discovers the backend at runtime from the
+    # topbar field / ?api= / localStorage, defaulting to <host>:8000. Nothing to inject.
+
+volumes:
+  backend_jobs:

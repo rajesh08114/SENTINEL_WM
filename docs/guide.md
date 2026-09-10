@@ -7,96 +7,109 @@ from traffic telemetry and **forecasts attacker progression K windows ahead**,
 with a calibrated probability, a MITRE ATT&CK-aligned phase (with an explicit
 confidence), and a feature-level explanation for every prediction.
 
-No Flask, no Streamlit, no cloud. Everything is a terminal command or a notebook.
+This guide covers the **`research/`** half — the offline ML pipeline (CLI +
+notebooks, no web UI). The serving application (FastAPI + Next.js) is
+[`../backend/`](../backend) and [`../frontend/`](../frontend).
 
 ---
 
 ## 0. TL;DR
 
 ```bash
-pip install -e .            # or:  pip install -r requirements.txt
+cd research
+pip install -e ".[benchmark]"                # core + xgboost + lightgbm + shap (all optional)
 
-# one command runs phases 1-6 end to end and prints the benchmark
-python -m sentinel_wm.cli all --epochs 40
+# the whole study: data -> every model -> benchmark -> explain -> simulate
+python -m sentinel_wm.research all           # ~30-45 min on a GPU
+python -m sentinel_wm.research all --quick   # small epochs, ~10 min
+
+python -m sentinel_wm.cli all                # lighter: phase runner, ends at the benchmark
+sentinel-wm bundle ../backend/models                 # assemble the deploy bundle for backend/
 ```
 
-Outputs land in `artifacts/` (parquet, `world_model.pt`, scaler) and
-`artifacts/reports/` (`benchmark.md`, `world_model_metrics.json`,
-`forward_sim_test.json`, `explainability.json`).
+`research all` populates **`../runs/`** (models, benchmarks, figures,
+explainability, simulations, `reports/RESEARCH_REPORT.md`). Pipeline working files
+stay in **`../artifacts/`** (parquet, `world_model.pt`, `graph_windows.npz`,
+scaler). The portable **`../backend/models/`** bundle is what the backend loads.
 
 ---
 
 ## 1. What is in this repo
 
 ```
-sentinel_wm/                         the Python package (`pip install -e .`)
+research/                            the ML workspace (this guide)
+ sentinel_wm/                        the Python package (`cd research && pip install -e .`)
   config.py              hyper-parameters, paths, LOCKED feature tiers
   preprocessing.py       PHASE 1  raw unified CSV  -> artifacts/clean_flows.parquet
   state_windows.py       PHASE 2  clean flows      -> artifacts/state_windows.parquet
   attack_stages.py       MITRE ATT&CK phase mapping (Layer A static + Layer B context)
   sequences.py           PHASE 2c windows          -> artifacts/sequences.npz  (+ scaler)
-  baselines.py           PHASE 3  LogisticRegression / RandomForest comparison floor
-  models.py              the world model: Temporal Transformer + probabilistic STN + heads
+  baselines.py           PHASE 3  classical model zoo (10 models x window/sequence)
+  models.py              the world model: Bi-GRU + attention encoder + probabilistic STN + heads
   train.py               PHASE 4  train / --test the world model
+  nn_zoo.py              neural baselines: MLP / LSTM / GRU / TCN  (nn.Module defs)
+  nn_common.py           shared train / eval / checkpoint loop for every deep model
+  graph_windows.py       per-window host-interaction graphs -> artifacts/graph_windows.npz
+  gat.py                 from-scratch Graph Attention Network baseline (no torch-geometric)
   forward_sim.py         PHASE 5  K-step Monte-Carlo forward simulation + ATT&CK per step
   explain.py             PHASE 6  SHAP (or fallback) + attention + gradient saliency
-  evaluate.py            benchmark table: world model vs baselines  -> benchmark.md
+  benchmark.py           unified scoreboard: every saved model, same test anchors
+  registry.py            one uniform loader for every saved model (for the app)
+  research.py            orchestrator -> the runs/ folder
+  bundle.py              `sentinel-wm bundle` -> ../backend/models/ (shipped in the backend)
+  evaluate.py            back-compat shim -> benchmark.py
   metrics.py             shared metric fns (F1/FPR/AUROC, Brier/ECE, Mean Lead Time)
   cli.py                 the offline command-line interface (all of the above)
 
-extraction/
+ extraction/
   extractor.py           PCAP -> unified flow+packet CSV via tshark (standalone)
   label_mapping.ipynb    maps official CIC-IDS-2017 labels onto the extractor output
 
-notebooks/
-  01_data_preprocessing.ipynb    PHASE 1 walkthrough with plots
-  02_sequence_generation.ipynb   PHASE 2 walkthrough: states, ATT&CK mapping, split
-  03_model_training.ipynb        PHASE 3-6 walkthrough: baselines, training, sim, explain
+ notebooks/               00-05 phase notebooks (run from research/notebooks/)
+ pyproject.toml  requirements.txt  RUN.md  README.md
 
-docs/
-  proposal.md            the SENTINEL-WM v2.0 design document
-  plan_validation.md     what was reviewed / corrected vs the proposal
-  guide.md               this file
-  problem_statement.pdf
-
-data/                    input CSVs (gitignored) - see data/README.md
-artifacts/               all generated data + weights + reports (gitignored)
-pyproject.toml  requirements.txt  README.md  .gitignore
+docs/        proposal.md  plan_validation.md  guide.md  technical_reference.md
+data/        input CSVs (gitignored) - see data/README.md
+artifacts/   pipeline working files (gitignored)
+runs/        generated benchmark study (gitignored) - see research/README.md
+backend/models/  the deploy bundle, shipped inside the backend (gitignored)
+backend/  frontend/   the serving application
 ```
 
-Input expected: `unified_*_labeled.csv` under `data/`, listed in
+Input expected: a `unified_*_labeled.csv` under `data/`, listed in
 `sentinel_wm.config.RAW_FLOW_CSVS`. Ships with
-`data/unified_Wednesday-WorkingHours_labeled.csv`.
+`data/unified_AllDays_labeled.csv` (all 5 CIC-IDS-2017 days).
 
 ---
 
 ## 2. The pipeline, phase by phase
 
 ```
- raw unified CSV  (692k flows, 126 cols)
+ data/unified_AllDays_labeled.csv   (~2.8M flows, all 5 days, 15 families)
         │  preprocessing.py           inf/NaN fix, label -> family, day, time axis
         ▼
  artifacts/clean_flows.parquet
-        │  state_windows.py           10s windows -> S_t (41 dims)
+        │  state_windows.py           10s windows -> S_t (53 dims: 41 base
+        │                             + 4 entropy + 8 first-differences)
         │                             + progression_state (episodes)
         │                             + ATT&CK phase/confidence (attack_stages.py)
         ▼
- artifacts/state_windows.parquet
-        │  sequences.py               [S_{t-9..t}] -> (S_{t+1}, A_{t+1..6}, Z_{t+1..6})
-        │                             block-interleaved split, train-only RobustScaler
+ artifacts/state_windows.parquet ───────────┐  graph_windows.py -> per-window host graphs
+        │  sequences.py                      ▼  artifacts/graph_windows.npz
+        │  [S_{t-11..t}] -> (S_{t+1}, A_{t+1..6}, Z_{t+1..6})
+        │  leakage-safe stratified split + span-boundary purge, train-only RobustScaler
         ▼
  artifacts/sequences.npz  +  artifacts/state_scaler.pkl
         │
-        ├── baselines.py              LR / RF on S_t only  (no temporal modelling)
-        │
-        └── train.py                  Temporal Transformer + STN + attack/prog heads
-                    │
-                    ▼
-             artifacts/world_model.pt
+        ├── baselines.py    classical zoo (10 models x window/__seq)   -> runs/models/classical/
+        ├── nn_zoo.py        MLP / LSTM / GRU / TCN  (via nn_common)     -> runs/models/nn/
+        ├── gat.py           from-scratch Graph Attention Network       -> runs/models/nn/gat.pt
+        └── train.py         world model: Bi-GRU + attention + STN      -> artifacts/world_model.pt
                     │
                     ├── forward_sim.py   K-step MC rollout -> P(attack) timeline + ATT&CK
-                    ├── explain.py        feature attribution + attention saliency
-                    └── evaluate.py       benchmark.md  (world model vs baselines)
+                    ├── explain.py        SHAP + attention + gradient saliency
+                    ├── benchmark.py      every model, same test anchors -> runs/benchmarks/
+                    └── registry.py       runs/models/registry.json  (uniform load_predictor)
 ```
 
 ### PHASE 1 — pre-processing
@@ -172,26 +185,73 @@ internals — `state_windows.py` and `forward_sim.py` only call the public funct
 ```bash
 python -m sentinel_wm.cli sequences           # or:  python -m sentinel_wm.sequences
 ```
-* builds `X [N,10,41]`, `dt [N,10]`, `x_next [N,41]`, `y_atk [N,6]`,
-  `y_prog [N,6]`, `y_now [N]`, `split [N]`;
-* **split** (`config.SplitConfig.mode`):
-  * `auto` → **`day`** if >1 CIC-IDS-2017 day is present
-    (Mon-Wed=train / Thu=val / Fri=test), else **`block`**;
-  * `block` (single-day default): 5-minute blocks assigned
-    `train,train,train,val,test` round-robin so every split has attack windows;
-  * also available: `chronological`, `family` (train on some DoS families,
-    test on others);
+* builds `X [N,12,53]`, `dt [N,12]`, `x_next [N,53]`, `y_atk [N,6]`,
+  `y_prog [N,6]`, `y_now [N]`, `split [N]` (`"train"|"val"|"test"|"ignore"`),
+  `dominant_family [N]`, `is_synthetic [N]`;
+* **split** (`config.SplitConfig.mode`, default `"auto"` → `"stratified"`):
+  * **`stratified`** (primary, leakage-safe) — benign windows get a contiguous
+    per-day 60/20/20 backbone; a **whole attack episode** is assigned to one
+    split, rotating per family (`stratified_episode_rotation`) so families with
+    ≥3 episodes span all 3 splits; only episodes ≥ `stratified_long_episode_windows`
+    (54 = 3·(L+K)) are cut internally. Sequences whose `[t-L+1..t+K]` span crosses
+    a split boundary are dropped (`SequenceConfig.purge_boundary_sequences`), and
+    `build_sequences` asserts every retained sequence is span-pure. Scaler fit on
+    real-train only. Synthetic (flow-augmented) windows are always train. Single-
+    burst families (e.g. DoS GoldenEye) may land in only 1–2 splits — a real
+    dataset property, shown by the per-family metrics. See
+    `docs/technical_reference.md` Part 1.9.
+  * **`block`** — each day cut into `block_minutes` (5) contiguous blocks,
+    assigned `train,train,train,val,test` round-robin. Kept as a secondary
+    benchmark.
+  * **`day`** — strict CIC-IDS-2017 day split (Mon-Wed / Thu / Fri) = *zero-shot
+    new-attack-family* test. Run into its own folder:
+    `python -m sentinel_wm.research all --split day --outdir research_zeroshot`.
+  * **`family`** — attack-family hold-out (`family_val` / `family_test` excluded
+    from train); the other zero-shot benchmark, same `--outdir research_zeroshot`.
+  * also: `episode_chrono` (lead-time-focused), `chronological`.
 * RobustScaler is fit on the **training split only** and pickled to
   `artifacts/state_scaler.pkl`; `dt` is `log1p`-compressed.
 
-### PHASE 3 — baselines
+### PHASE 3 — classical model zoo
 ```bash
 python -m sentinel_wm.cli baseline            # or:  python -m sentinel_wm.baselines
 ```
-Logistic Regression (mandated) + Random Forest, each trained on the **current
-window `S_t` only** — one classifier per horizon `k=1..6`. A single alert
-threshold is calibrated on validation to FPR ≤ 5 %. Plus a trivial `persistence`
-reference (`A_{t+k}=A_t`). Metrics → `artifacts/baselines/baseline_metrics.json`.
+LogisticRegression, RandomForest, ExtraTrees, HistGradientBoosting, sklearn-MLP,
+LinearSVC, kNN, GaussianNB, **XGBoost**, **LightGBM** (the last two skipped if
+not installed) — each as **K independent binary classifiers** (one per horizon
+`k=1..6`), in two input regimes:
+
+* `window`   — the current state vector `S_t` only  (`[N, 53]`, "no temporal context")
+* `__seq`    — the flattened `L`-window history       (`[N, 636]`, same info as the world model)
+
+Class imbalance: `class_weight="balanced"` where the estimator supports it, else
+balanced `sample_weight`. A single alert threshold is FPR-calibrated on
+validation. Plus a `persistence` reference (`A_{t+k}=A_t`). Fitted estimators →
+`runs/models/classical/<name>.pkl` (+ `.meta.json`); metrics →
+`artifacts/baselines/baseline_metrics.json`.
+
+### PHASE 4b — neural sequence baselines
+```bash
+python -m sentinel_wm.cli nn --kinds mlp lstm gru tcn --epochs 50
+```
+`nn_zoo.py` defines four `nn.Module`s that consume the SAME `X [B,L,F]`, `dt [B,L]`
+tensor and emit the SAME heads (`attack_logits_k [B,K]`, `prog_logits_k [B,K,S]`)
+as the world model, so `nn_common.train_nn` trains and scores them with the
+identical protocol (class-weighted BCE+CE, AdamW+cosine, early stop, FPR-calibrated
+threshold, checkpoint). Checkpoints → `runs/models/nn/{mlp,lstm,gru,tcn}.pt`.
+
+### PHASE 4c — Graph Attention Network
+```bash
+python -m sentinel_wm.cli graphwindows        # build per-window host graphs
+python -m sentinel_wm.cli gat --epochs 50
+```
+`graph_windows.py` rebuilds, for every 10-s window, a directed host-interaction
+graph (nodes = the busiest hosts, 14 features each; edges = `log1p(flow count)`),
+padded to `N_max=32`, saved to `artifacts/graph_windows.npz` aligned to
+`state_windows.parquet`. `gat.py` runs a **from-scratch** GAT (masked additive
+attention, no `torch-geometric`) per window → GRU over the `L` window embeddings →
+the shared heads. Trains through `nn_common` via a `batch_forward` hook.
+Checkpoint → `runs/models/nn/gat.pt`.
 
 ### PHASE 4 — world model
 ```bash
@@ -199,14 +259,16 @@ python -m sentinel_wm.cli train --epochs 40                 # GPU auto-detected
 python -m sentinel_wm.train --epochs 40 --device cpu
 python -m sentinel_wm.train --test              # evaluate an existing checkpoint
 ```
-Architecture (`models.SentinelWorldModel`):
+Architecture (`models.SentinelWorldModel`; encoder chosen by `ModelConfig.encoder`,
+default `"gru"` — the causal Temporal Transformer is still selectable with
+`"transformer"`):
 
 ```
-X [B,10,41] , dt ──► in_proj ──► + elapsed-time positional enc
+X [B,12,53] , dt ──► in_proj (+ log-dt channel)
                           │
-                 3 × causal self-attention blocks (4 heads)   ← attn weights kept
+        Bi-GRU (2 layers, d/2 each dir) + MultiheadAttention read-out on S_t
                           │
-                        z_t  [B,128]
+                        z_t  [B,160]
              ┌────────────┼─────────────────────────────┐
              ▼            ▼                             ▼
    horizon_attack   StateTransitionNet            shared heads
@@ -250,44 +312,78 @@ python -m sentinel_wm.cli explain
 * **Gradient×input** on the state sequence → per (window, feature) attribution.
 Report → `artifacts/reports/explainability.json`.
 
-### Benchmark
+### Benchmark + registry
 ```bash
-python -m sentinel_wm.cli evaluate            # -> artifacts/reports/benchmark.md
+python -m sentinel_wm.cli benchmark          # -> runs/benchmarks/*  + registry.json
 ```
+`benchmark.py` discovers every model in `runs/models/` + `artifacts/world_model.pt`,
+scores them all on the **same test anchors** with the same `metrics.py` code, and
+writes `benchmark_full.csv` (F1/P/R/FPR/AUROC/Brier/ECE/MLT/detection/params/
+infer-ms + `f1_k1..k6`), `per_horizon_f1.csv`, `leadtime.csv`, `benchmark.md`,
+`benchmark.json`, and figures (`horizon_f1`, `roc`, `pr`, `lead_time`).
+`registry.build_registry()` writes `runs/models/registry.json` — the uniform
+index the serving app loads via `registry.load_predictor(name)`.
+
+### The whole study
+```bash
+python -m sentinel_wm.research all            # primary (stratified) -> runs/
+python -m sentinel_wm.research all --split family --outdir research_zeroshot   # zero-shot
+python -m sentinel_wm.research report         # fold the zero-shot section into RESEARCH_REPORT.md
+python -m sentinel_wm.research <step>         # rerun one stage
+python -m sentinel_wm.research flowaug        # (opt-in) build clean_flows_aug.parquet
+```
+Steps: `flowaug`, `profile`, `baselines`, `worldmodel`, `nn`, `gat`, `benchmark`,
+`explain`, `simulate`, `report`. `all` runs `flowaug` first automatically when
+`WindowConfig.flow_augment` is `True`.
 
 ---
 
 ## 3. How to read the results
 
-`artifacts/reports/benchmark.md` on the shipped single Wednesday (DoS) day:
+The live table is `runs/benchmarks/benchmark.md`; the narrative with every
+claim linked to its file is `runs/reports/RESEARCH_REPORT.md`. Regenerate
+with `python -m sentinel_wm.research all`.
 
-| Model | F1 (any-k) | AUROC | **Mean Lead Time** | **Episodes warned** | FA rate |
-|---|---|---|---|---|---|
-| Logistic Regression | 0.75 | 0.92 | 10 s | 1 / 7 | 0.03 |
-| Random Forest | 0.82 | 0.97 | 0 s | 0 / 7 | 0.01 |
-| Persistence | 0.84 | 0.87 | 0 s | 0 / 7 | 0.00 |
-| **SENTINEL-WM** | 0.80 | 0.95 | **30 s** | **4 / 7** | 0.05 |
+What to look for (`stratified` split, all 5 days). **Rank by `PR-AUC` / `F1*` /
+`AUROC`** (threshold-free) — the test set has only ~76 positive sequences, so the
+val-tuned `F1` column's third decimal is noise. Full analysis + caveats:
+[`technical_reference.md`](technical_reference.md) §1.10.
 
-* A tree ensemble is strong at *nowcasting a flood that is already obvious in
-  `S_t`* — expected, not the goal.
-* The world model wins on **lead time** (30 s vs ~0) and **holds F1 as the
-  horizon grows** (0.80 → 0.73 from +10 s to +60 s). Progression-state accuracy
-  0.89; Brier(k1) 0.06; ECE(k1) 0.08 (well calibrated).
-* Wednesday is DoS-only and DoS onsets are abrupt, so there is little pre-attack
-  signal to forecast — this caps lead time. The proposal's headline
-  **Infiltration** scenario (Thursday) is the one that shows large lead time.
+* **`SENTINEL-WM (system)` leads by PR-AUC (~0.992)** and ties LSTM on `F1*`
+  (~0.968); it has the flattest forecast-horizon decay and is the only model that
+  also emits a progression state + calibrated K-step MC rollout + per-step ATT&CK
+  phase. **LSTM wins the single val-tuned `F1` number** (its threshold transferred
+  perfectly) — within noise of the system on every threshold-free metric.
+* **`persistence` scores F1 ~0.99 and Mean Lead Time is ~0 s for every model** —
+  whole episodes go to one split, so test anchors sit mid-episode. This benchmark
+  measures **now-casting a sustained attack**, not forecasting an onset. Use
+  `SplitConfig.mode="episode_chrono"` and/or `WindowConfig.flow_augment=True` to
+  measure the forecast itself.
+* The classical `__seq` tree boosters **genuinely overfit** the ~440 positive
+  train sequences (`hist_gradient_boosting__seq` F1* 0.26) — correctly last.
+* Progression-state accuracy (~0.98), Brier(k1), ECE(k1) are in the benchmark CSV.
+
+**Per-attack-family breakdown** — `runs/benchmarks/per_family.csv` +
+`benchmark.md` block scores each family against the shared benign background;
+families with < 8 positive test windows (Heartbleed / Infiltration / SQL-Injection)
+are reported as excluded, not failures.
+
+**Harder secondary benchmark** — `python -m sentinel_wm.research all --split family
+--outdir research_zeroshot` (or `--split day`): whole attack families are held out
+of training. Zero-shot; absolute F1 drops to ~0.3–0.5 for *every* model (that is
+the point). `python -m sentinel_wm.research report` then folds a "Zero-shot
+generalisation" section into the primary `RESEARCH_REPORT.md`.
 
 ---
 
-## 4. Adding more CIC-IDS-2017 days (recommended next step)
+## 4. Data
 
-1. Extract each day to `unified_<Day>-WorkingHours_labeled.csv` with
-   `extractor.py` + `extraction/label_mapping.ipynb` (same process that produced the Wednesday file).
-2. Add the paths to `config.RAW_FLOW_CSVS`.
-3. Re-run `python -m sentinel_wm.cli all`. `SplitConfig.mode="auto"` now selects the
-   proposal's **day-based** split (Mon-Wed / Thu / Fri) automatically — no code
-   change. The ATT&CK table already covers Patator, Web attacks, PortScan, Bot,
-   DDoS and Infiltration.
+`data/unified_AllDays_labeled.csv` (all 5 days, ~2.8 M flows, 15 families) is the
+default input. To rebuild it or add other datasets see
+[`../data/README.md`](../data/README.md): run `extraction/extractor.py` on each
+day's PCAP then `extraction/label_mapping.ipynb`, and point
+`config.RAW_FLOW_CSVS` at the result. The ATT&CK table in `attack_stages.py`
+already covers Patator, Web attacks, PortScan, Bot, DDoS and Infiltration.
 
 ---
 
@@ -299,15 +395,23 @@ python -m sentinel_wm.cli evaluate            # -> artifacts/reports/benchmark.m
 | `WindowConfig.stride_seconds` | 10 | set to 5 for 50 % overlap |
 | `WindowConfig.pre_attack_span` | 3 | windows before onset flagged PRE_ATTACK |
 | `WindowConfig.episode_gap_windows` | 2 | benign holes bridged inside an episode |
-| `SequenceConfig.history` (L) | 10 | input windows (100 s of history) |
+| `SequenceConfig.history` (L) | 12 | input windows (120 s of history) |
 | `SequenceConfig.horizon` (K) | 6 | forecast steps (60 s ahead) |
-| `SplitConfig.mode` | `auto` | `day` / `block` / `chronological` / `family` |
-| `SplitConfig.block_minutes` | 5 | block size for the single-day split |
+| `SplitConfig.mode` | `auto` (→`stratified`) | `stratified` / `block` / `day` / `family` / `episode_chrono` / `chronological` |
+| `SplitConfig.stratified_fracs` | (0.6, 0.2, 0.2) | benign backbone + long-episode internal cut |
+| `SplitConfig.stratified_benign` | `contiguous` | `contiguous` (leakage-safe) or `block` |
+| `SplitConfig.stratified_episode_rotation` | `(train,val,train,test)` | per-family whole-episode split cycle |
+| `SplitConfig.stratified_long_episode_windows` | 54 | episodes ≥ this are cut internally 60/20/20 |
+| `SequenceConfig.purge_boundary_sequences` | `True` | drop sequences whose span crosses a split boundary |
+| `SplitConfig.block_minutes` | 5 | block size for the `block` split |
+| `WindowConfig.flow_augment` | `False` | train-only flow-level augmentation (`flow_augment.py`) |
 | `ModelConfig.d_model / n_heads / n_layers` | 128 / 4 / 3 | transformer size |
 | `ModelConfig.w_*` | see file | joint-loss weights |
 | `TrainConfig.epochs / batch_size / lr` | 40 / 256 / 1e-4 | training |
 | `TrainConfig.mc_samples` (M) | 50 | Monte-Carlo rollout samples |
 | `TrainConfig.target_fpr` | 0.05 | alert threshold auto-calibrated to this |
+
+Graph model: `graph_windows.N_MAX` (32) hosts/window, `N_NODE_FEAT` (14).
 
 ---
 
@@ -317,11 +421,12 @@ python -m sentinel_wm.cli evaluate            # -> artifacts/reports/benchmark.m
 |---|---|
 | `FileNotFoundError: No raw flow CSVs` | put `unified_*_labeled.csv` in the folder / fix `config.RAW_FLOW_CSVS` |
 | `'Label' column missing` | run `extraction/label_mapping.ipynb` first — the world model needs labelled flows |
-| `training split is empty` | wrong `SplitConfig`; with one day keep `mode="auto"`/`block` |
+| `training split is empty` | wrong `SplitConfig`; the default `"stratified"` always yields all 3 splits |
 | rollout probs all ≈ 0.4-0.5 | retrain — an old checkpoint predates the shared-head loss fix |
-| `shap` import errors | optional; the fallback runs automatically. `pip install shap` to enable |
-| CUDA OOM | `--device cpu` (≈ 1 min for 40 epochs on this dataset) |
-| `ModuleNotFoundError: sentinel_wm` | run `pip install -e .` from the repo root, or run notebooks from `notebooks/` (they self-bootstrap `sys.path`) |
+| `shap` / `xgboost` / `lightgbm` import errors | all optional; the zoo skips them, explain falls back. `cd research && pip install -e ".[benchmark]"` to enable |
+| CUDA OOM (esp. GAT) | `--device cpu`, or lower `graph_windows.N_MAX` / GAT `d_model` |
+| LightGBM "access violation" on Windows | already set `n_jobs=1`; if it still crashes it is skipped and the zoo continues |
+| `ModuleNotFoundError: sentinel_wm` | run `pip install -e ./research`, or run notebooks from `research/notebooks/` (they self-bootstrap `sys.path`) |
 | PCAP re-extraction | needs the `tshark` binary on PATH (install Wireshark) + `pip install scapy` |
 
 ---

@@ -1,0 +1,46 @@
+"use client";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  Activity, Boxes, Cpu, GaugeCircle, LayoutGrid, Radio, Workflow,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+export const NAV = [
+  { href: "/", label: "Overview", icon: LayoutGrid },
+  { href: "/sources", label: "Data Sources", icon: Boxes },
+  { href: "/pipeline", label: "Pipeline", icon: Workflow },
+  { href: "/dashboard", label: "SOC Dashboard", icon: GaugeCircle },
+  { href: "/live", label: "Live Telemetry", icon: Radio },
+  { href: "/architecture", label: "Architecture", icon: Activity },
+  { href: "/model", label: "Model Card", icon: Cpu },
+];
+
+export function SideNav() {
+  const path = usePathname();
+  return (
+    <nav
+      aria-label="Primary"
+      className="flex shrink-0 gap-1 overflow-x-auto border-b border-line bg-surface p-2 md:w-[232px] md:flex-col md:overflow-visible md:border-b-0 md:border-r md:p-3"
+    >
+      {NAV.map(({ href, label, icon: Icon }) => {
+        const active = href === "/" ? path === "/" : path.startsWith(href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "flex items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-sm text-muted transition-colors hover:bg-elevated hover:text-ink",
+              active &&
+                "bg-brand/10 text-ink shadow-[inset_2px_0_0_var(--brand)]"
+            )}
+          >
+            <Icon size={15} className="text-brand" />
+            <span className="hidden md:inline">{label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}

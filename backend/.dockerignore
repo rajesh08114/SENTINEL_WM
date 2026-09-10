@@ -1,0 +1,8 @@
+# models/ is intentionally NOT ignored - the bundle is baked into the image so
+# it runs standalone. Mount over /app/models to update without a rebuild.
+data/
+.env
+tests/
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -2,9 +2,35 @@
 # SENTINEL-WM  .gitignore
 # ---------------------------------------------------------------------------
 
-# --- generated pipeline outputs (rebuilt by `python -m sentinel_wm.cli all`)
+# --- generated pipeline working files (rebuilt by `python -m sentinel_wm.cli all`)
 artifacts/*
 !artifacts/.gitkeep
+
+# --- runs/ : generated benchmark study (renamed from ./research/). Commit the
+#     PROOF (reports, benchmark CSVs, figures, meta, registry, logs); ignore the
+#     regenerable heavy binaries.
+runs/models/**/*.pkl
+runs/models/**/*.pt
+runs/simulations/forward_sim_test.json
+runs_zeroshot/
+
+# --- the deploy bundle (`sentinel-wm bundle`) - regenerable model binaries.
+#     Its canonical home is backend/models/ (shipped inside the backend).
+/models/
+backend/models/
+
+# --- backend / frontend runtime
+backend/data/
+backend/.env
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/playwright-report/
+frontend/test-results/
+capture-agent/*.egg-info/
+*.sqlite
+*.sqlite3
+*.db
 
 # --- datasets (too large / redistribution-restricted; see data/README.md)
 data/*

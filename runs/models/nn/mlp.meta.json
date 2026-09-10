@@ -1,0 +1,14 @@
+{
+  "name": "mlp",
+  "family": "nn",
+  "kind": "mlp",
+  "params": 519460,
+  "threshold": 0.9,
+  "epochs_run": 50,
+  "metrics": {
+    "f1": 0.8176100628930818,
+    "auroc": 0.9863961579927473,
+    "mean_lead_time_s": 0.0,
+    "progression_acc": 0.985089943257274
+  }
+}

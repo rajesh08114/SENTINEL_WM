@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sentinel-wm-backend"
+version = "0.1.0"
+description = "FastAPI inference service for SENTINEL-WM (flow CSV / PCAP / telemetry -> attack-progression forecast + explanation + ATT&CK phase)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+# Self-contained: the inference code is vendored in app/sentinel_infer/ - the
+# backend does NOT depend on the research package. The only external interface is
+# a model bundle directory (SENTINEL_WM_MODEL_DIR).
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "python-multipart>=0.0.9",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "pandas>=1.5",
+    "numpy>=1.23,<2.0",
+    "pyarrow>=10.0",
+    "scikit-learn>=1.0",        # unpickle the RobustScaler in the bundle
+    "torch>=2.1",               # for a CPU-only image: install the CPU wheel first
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "httpx>=0.27", "pytest-asyncio>=0.23"]
+metrics = ["prometheus-client>=0.20"]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

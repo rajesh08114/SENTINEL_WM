@@ -8,16 +8,19 @@ CIC-IDS-2017 has its own redistribution terms.
 
 | File | Produced by | Size |
 |---|---|---|
-| `unified_<Day>-WorkingHours_labeled.csv` | `extraction/label_mapping.ipynb` | ~0.1–2 GB / day |
+| `unified_AllDays_labeled.csv` | all 5 days concatenated (has a `source_day` column) | ~2.4 GB |
+| `unified_<Day>-WorkingHours_labeled.csv` | `extraction/label_mapping.ipynb`, per day | ~0.1–2 GB / day |
+
+`config.RAW_FLOW_CSVS` points at `unified_AllDays_labeled.csv`; if it is missing,
+`RAW_FLOW_CSVS_FALLBACK` uses `unified_Wednesday-WorkingHours_labeled.csv`.
 
 Each row is one bidirectional flow with:
 * Tier 1 — CICFlowMeter-style flow features (from the CIC-IDS-2017 CSV),
 * Tier 2 — packet-level features (TTL/window/payload moments, retransmission
   count, port-scan entropy) computed from the matching PCAP by
   `extraction/extractor.py`,
-* `flow_start_epoch`, `source_file`, and a mapped `Label`.
-
-The repo ships with `unified_Wednesday-WorkingHours_labeled.csv` already built.
+* `flow_start_epoch`, `source_file` / `source_day`, and a mapped `Label`
+  (15 attack families across the 5 days).
 
 ## Adding more CIC-IDS-2017 days (recommended)
 
@@ -34,14 +37,17 @@ Day schedule (`sentinel_wm/config.py:DAY_SCHEDULE`):
 
 | Day | Attacks | Split role once present |
 |---|---|---|
-| Monday | benign only | train |
-| Tuesday | FTP/SSH-Patator | train |
-| Wednesday | DoS ×4, Heartbleed | train |
-| Thursday | Web attacks, **Infiltration** | validation |
-| Friday | Botnet, PortScan, DDoS | test |
+| Monday | benign only |
+| Tuesday | FTP/SSH-Patator |
+| Wednesday | DoS ×4, Heartbleed |
+| Thursday | Web attacks, **Infiltration** |
+| Friday | Botnet, PortScan, DDoS |
 
-With ≥2 days present, `SplitConfig.mode="auto"` switches from the single-day
-block-interleaved split to this proper day-based split automatically.
+The default `SplitConfig.mode="auto"` → **`stratified`** does *not* split by day:
+it assigns whole attack episodes to train/val/test per family (leakage-safe) so
+every family with ≥3 bursts is in all 3 splits. The day-based Mon-Wed / Thu / Fri
+split above is available as the zero-shot secondary benchmark
+(`--split day --outdir research_zeroshot`). See `RUN.md` §3.
 
 ## Cross-dataset evaluation (optional)
 

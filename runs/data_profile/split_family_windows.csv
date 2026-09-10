@@ -1,0 +1,13 @@
+dominant_family,test,train,val
+BENIGN,4,14,6
+Bot,44,84,18
+DDoS,24,71,24
+DoS GoldenEye,0,26,14
+DoS Hulk,21,62,23
+DoS Slowhttptest,13,17,14
+DoS slowloris,11,65,54
+FTP-Patator,123,87,114
+PortScan,14,35,31
+SSH-Patator,58,177,88
+Web Attack Brute Force,16,84,48
+Web Attack XSS,24,42,27
