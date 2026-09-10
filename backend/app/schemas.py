@@ -94,6 +94,37 @@ class MetaResponse(BaseModel):
 
 
 class HealthResponse(BaseModel):
+    model_config = ConfigDict(extra="allow")
     status: str
     model_loaded: bool
     detail: Optional[str] = None
+
+
+class LiveSessionCreate(BaseModel):
+    source: str                                  # "synthetic" | "capture"
+    # -- synthetic --
+    scenario: Optional[str] = None
+    rate: Optional[float] = None
+    duration_s: Optional[float] = None
+    seed: Optional[int] = None
+    speed: Optional[float] = None
+    attacker_ip: Optional[str] = None
+    victim_ip: Optional[str] = None
+    family_hint: Optional[str] = None
+    explain: bool = True
+    # -- capture --
+    iface: Optional[str] = None
+    bpf: Optional[str] = None
+
+
+class LiveSessionInfo(BaseModel):
+    model_config = ConfigDict(extra="allow")
+    id: str
+    source_kind: str
+    state: str
+    error: Optional[str] = None
+    params: dict[str, Any] = {}
+    stats: dict[str, Any] = {}
+    created_at: float
+    last_activity: float
+    subscribers: int = 0

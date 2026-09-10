@@ -43,9 +43,10 @@ _PHASE_GAIN = {"benign": 0.0, "pre_attack": 0.15, "onset": 0.5,
 @dataclass
 class ScenarioConfig:
     name: str
-    rate: float = 40.0            # benign flows / second
-    duration_s: float = 120.0
+    rate: float = 40.0            # benign flows / second (scenario time)
+    duration_s: float = 300.0     # scenario-time length
     seed: int = 0
+    speed: float = 1.0            # scenario seconds advanced per wall second
     attacker_ip: str = "10.0.0.66"
     victim_ip: str = "10.0.0.20"
     c2_ip: str = "198.51.100.7"
@@ -66,6 +67,7 @@ SCENARIOS: dict[str, ScenarioConfig] = {
 
 def build_config(name: str, *, rate: Optional[float] = None,
                  duration_s: Optional[float] = None, seed: Optional[int] = None,
+                 speed: Optional[float] = None,
                  attacker_ip: Optional[str] = None,
                  victim_ip: Optional[str] = None) -> ScenarioConfig:
     if name not in SCENARIOS:
@@ -76,6 +78,7 @@ def build_config(name: str, *, rate: Optional[float] = None,
         rate=float(base.rate if rate is None else rate),
         duration_s=float(base.duration_s if duration_s is None else duration_s),
         seed=int(base.seed if seed is None else seed),
+        speed=float(base.speed if speed is None else speed),
         attacker_ip=attacker_ip or base.attacker_ip,
         victim_ip=victim_ip or base.victim_ip,
         c2_ip=base.c2_ip,
@@ -83,6 +86,7 @@ def build_config(name: str, *, rate: Optional[float] = None,
     )
     cfg.rate = max(1.0, min(cfg.rate, float(settings.synth_max_rate)))
     cfg.duration_s = max(1.0, cfg.duration_s)
+    cfg.speed = max(0.1, min(cfg.speed, 120.0))
     return cfg
 
 
