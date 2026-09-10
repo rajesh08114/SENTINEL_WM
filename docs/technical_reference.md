@@ -753,3 +753,84 @@ All in `sentinel_wm/metrics.py`; test-split only, at the val-calibrated threshol
 ahead, (b) from 10-s window aggregates where the median positive is ~11 %
 malicious, (c) on a test set that is 69 % low-and-slow Botnet, (d) at a strict
 FPR ≤ 5 % operating point. Part 2 lists the concrete levers, cheapest first.
+
+---
+
+## Part 8 — Real-time serving (application layer)
+
+The application layer (`backend/`, `capture-agent/`, `frontend/`) is a separate
+deliverable from the research pipeline. It serves the trained **model bundle**
+(`backend/models/`) — no `sentinel_wm` import; inference code is vendored in
+`backend/app/sentinel_infer/`. Design spec:
+[`docs/superpowers/specs/2026-09-10-live-soc-application-design.md`](superpowers/specs/2026-09-10-live-soc-application-design.md).
+
+### 8.1 Live-session spine (`backend/app/live/`)
+
+- **`LiveSession`** — one real-time stream: owns a `StreamingWindower` (the same
+  incremental 10-s windowing + `simulate_anchor` path a CSV upload uses), a
+  200-entry ring buffer of recent forecasts for late subscribers, and a set of
+  WebSocket subscribers. `feed(rows)` → windower → `poll_ready()` in a thread →
+  fan out `{"type":"forecast", …}`. `stop()` drives the source's `stop()`,
+  cancels tasks, flushes, sends a final `status` + `bye`, closes sockets.
+- **`LiveManager`** — registry + `live_max_sessions` cap (default 4) + an idle
+  reaper (`live_idle_timeout_s`, default 900 s, unsubscribed sessions only).
+- **Sources** — `SyntheticSource` (paces `scenarios.emit()` against the wall
+  clock × a `speed` multiplier, feeds rows, `stop()`s at `duration_s`) and
+  `AgentSource` (bridges a bound capture agent's flow batches to `feed`).
+- **API** (`routes_live.py`): `POST /live/sessions` (`source: synthetic|capture`),
+  `GET/DELETE /live/sessions[/{id}]`, `WS /live/sessions/{id}/stream` (status +
+  ring replay, then live; client `{"type":"stop"}` ends it).
+
+### 8.2 Synthetic scenario generator (`backend/app/synth/scenarios.py`)
+
+`emit(t0, t1, cfg, rng)` is a **pure function**: benign baseline (mostly
+established sessions to a few servers) plus attack rows for whichever ramp phase
+is active — `benign → pre_attack → onset → active → continuation`, monotone
+`_PHASE_GAIN`. Rows are the 11 required CICFlowMeter columns + `Source Port` +
+`flag_true_*` + a few Tier-2. All randomness from `random.Random(seed)`.
+
+| scenario | signature |
+|---|---|
+| `portscan` | one src → many dst ports on the victim, 1–2 pkt SYN-only flows, widening range |
+| `dos_hulk` | one src → victim:80, high fwd packet/byte counts, sustained |
+| `bruteforce` | repeated short flows to :22/:3389/:21, high RST+FIN |
+| `botnet_c2` | periodic small beacons internal → fixed external IP, occasional larger pulls |
+| `exfil` | sustained large `Total Length of Fwd Packets` internal → external |
+| `benign` | baseline only |
+
+**Calibration caveat.** The production world model was trained on specific
+CIC-IDS-2017 fingerprints and runs hot near saturation (Part 1). Hand-generated
+flows are out-of-distribution, so the *absolute* P(attack) of a synthetic session
+is not meaningful — benign and attack phases can both read ~0.99. The test-bed's
+purpose is to exercise the full real-time path (streaming, windowing, rollout,
+progression, ATT&CK, CI) and show the relative narrative; the `/live` UI and
+`README` state this. Real calibration needs replaying real captures (deferred) or
+a synthetic-benign training channel.
+
+### 8.3 Capture agent (`capture-agent/`)
+
+A **host** process (Npcap + Administrator; never a container). Dials the backend
+at `WS /agent`, advertises local NICs, and on `{"cmd":"start", iface, bpf}` runs
+a `scapy.AsyncSniffer` + a 1-s `FlowMeter.harvest()` → `{"type":"flows", …}` pump.
+
+- **`interfaces.py`** — `list_interfaces()` merges `psutil` addresses/up-state
+  with scapy's friendly Windows descriptions; VirtualBox host-only / Huawei eNSP
+  adapters list naturally.
+- **`flowmeter.py`** — canonical bidirectional 5-tuple keying with first-seen
+  fwd orientation; per-direction packet/byte/IAT accumulation; TCP flag booleans;
+  emits a row on FIN/RST, else on idle (15 s) / active (120 s) timeout. It is
+  **not** a full CICFlowMeter clone — only the columns the model consumes; the
+  rest default to 0, exactly as `normalise_upload` tolerates.
+- Backend side: `app/agent/registry.py` (`AgentConnection`/`AgentRegistry`,
+  `REGISTRY` singleton), `routes_agent.py` (`WS /agent`, `GET /agent/status`). A
+  `POST /live/sessions {source:"capture"}` binds the first agent, sends `start`;
+  `DELETE` / disconnect sends `stop` and unbinds.
+
+### 8.4 Ops
+
+- `app/logging.py` — `dictConfig` (text or `SENTINEL_LOG_JSON` JSON);
+  `RequestIdMiddleware` binds `X-Request-ID` to a `ContextVar` on every record.
+- `GET /health` → `{status, bundle:{loaded,serve_mode,L,K,n_features},
+  live:{sessions,max}, agent:{connected,count}, uptime_s}`.
+- `GET /metrics` — only when `SENTINEL_METRICS=true`; Prometheus exposition if
+  `prometheus-client` is installed, else a small JSON snapshot.

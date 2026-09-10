@@ -1,7 +1,8 @@
 # SENTINEL-WM  -  research / backend / frontend
 .DEFAULT_GOAL := help
 .PHONY: help install research-run bundle backend-dev backend-test synth-demo \
-        capture-agent agent-test frontend-dev frontend-build up down docker-build
+        capture-agent agent-test frontend-dev frontend-build frontend-test \
+        up down docker-build
 
 help:  ## show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -30,6 +31,15 @@ capture-agent:  ## run the live-capture agent on this host (Npcap + Administrato
 
 agent-test:  ## capture-agent unit tests (flowmeter + interfaces, no live capture)
 	cd capture-agent && python -m pytest -q
+
+frontend-dev:  ## run the Next.js console with hot reload
+	cd frontend && npm run dev
+
+frontend-build:  ## static-export the console -> frontend/out/
+	cd frontend && npm run build
+
+frontend-test:  ## Vitest component/lib tests
+	cd frontend && npm test
 
 docker-build:  ## build the backend image
 	docker build -t sentinel-wm-backend backend/

@@ -73,8 +73,10 @@ ramp, the progression sequence, and the ATT&CK phase mapping.
 ### 3. The console (frontend)
 
 ```bash
-cd frontend && python -m http.server 5173     # no build step — any static server
-# open http://localhost:5173 · set the API base URL in the topbar (default :8000)
+cd frontend
+npm install
+npm run dev                   # http://localhost:3000 · set the API base URL in the topbar
+# production: npm run build (static export -> out/), served by nginx
 ```
 
 ### 4. Or everything in containers
