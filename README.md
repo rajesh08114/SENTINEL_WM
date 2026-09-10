@@ -20,7 +20,8 @@ attacker progression and support proactive cyber defence using World Models."*
 |---|---|
 | **[`research/`](research/)** | the ML workspace — the `sentinel_wm` package (preprocessing → state windows → sequences → model zoo → world model → benchmark → explainability → forward simulation), the `extraction/` PCAP tooling, and the phase notebooks. CLI + JSON artifacts. |
 | **[`backend/`](backend/)** | a **self-contained** FastAPI service (inference code vendored in `app/sentinel_infer/`, no `research/` import) that loads a **model bundle** and scores incoming traffic (flow CSV upload, PCAP upload, or a live telemetry WebSocket) → per-horizon forecasts **with explanations and ATT&CK phase mapping**. |
-| **[`frontend/`](frontend/)** | a Next.js UI for uploads, live monitoring, and the forecast / explanation / ATT&CK views. |
+| **[`frontend/`](frontend/)** | a **static** SOC-analyst console (plain ES modules, no build step; Tailwind + Chart.js from CDN) — data-source wizard, processing pipeline, forecast / progression / ATT&CK dashboard, live telemetry monitor, and the architecture + model-card pages. Talks only HTTP/WS to `backend/`. |
+| **[`capture-agent/`](capture-agent/)** | a **host** process (Npcap + Administrator) that enumerates local NICs Wireshark-style, sniffs a chosen interface (optional IP/CIDR filter), reassembles packets into flow rows, and streams them to `backend/` over `WS /agent` for **live network forecasting**. Not a container service. |
 | `backend/models/` | the portable model **bundle** (`sentinel-wm bundle`), shipped *inside* the backend so it deploys as one unit; regenerable, git-ignored. |
 | `data/` · `artifacts/` · `runs/` | raw CSVs · pipeline working files · generated benchmark study. All git-ignored. |
 | `docs/` | [`guide.md`](docs/guide.md) (usage manual), [`system_architecture.md`](docs/system_architecture.md) (**SENTINEL-WM (system)** — every layer, param, forward/backward pass), [`technical_reference.md`](docs/technical_reference.md) (loss / rollout / ATT&CK / leakage-control detail), [`proposal.md`](docs/proposal.md), [`plan_validation.md`](docs/plan_validation.md). |
@@ -46,15 +47,40 @@ Details + the zero-shot secondary benchmark: [`research/RUN.md`](research/RUN.md
 cd backend
 pip install -e .
 uvicorn app.main:app --reload
-#   POST /forecast/csv   (flow-CSV upload → forecast JSON)
-#   WS   /stream         (telemetry: stream NDJSON flow records, receive forecasts)
-#   GET  /meta  /models  /health
+#   POST /forecast/csv          flow-CSV upload → forecast JSON
+#   POST /live/sessions         start a synthetic test-bed or live-capture session
+#   WS   /live/sessions/{id}/stream    subscribe to a live session's forecasts
+#   WS   /agent                 a capture agent connects here
+#   WS   /stream                raw telemetry (NDJSON flow records)
+#   GET  /meta  /models  /health  /agent/status
 ```
 
-### 3. Or everything in containers
+### 2b. Real-time: synthetic test-bed & live capture
 
 ```bash
-docker compose up --build          # backend (+ frontend); mounts ./backend/models as a volume
+# synthetic scenario streamed through the real pipeline (no setup):
+make synth-demo            # or: POST /live/sessions {"source":"synthetic","scenario":"portscan"}
+
+# live capture from a local interface (host, needs Npcap + Administrator):
+cd capture-agent && pip install -e . && sentinel-capture run --backend ws://localhost:8000
+# then in the console: Live → Live capture → pick an interface → Start
+```
+
+Note: the production model runs hot on out-of-distribution synthetic traffic, so
+absolute P(attack) on a synthetic session is not calibrated — read the relative
+ramp, the progression sequence, and the ATT&CK phase mapping.
+
+### 3. The console (frontend)
+
+```bash
+cd frontend && python -m http.server 5173     # no build step — any static server
+# open http://localhost:5173 · set the API base URL in the topbar (default :8000)
+```
+
+### 4. Or everything in containers
+
+```bash
+docker compose up --build          # backend :8000  +  console :8080; mounts ./backend/models as a volume
 ```
 
 ---
@@ -74,13 +100,13 @@ docker compose up --build          # backend (+ frontend); mounts ./backend/mode
                                           progression state · ATT&CK phase+confidence
                                           driving features + temporal saliency
                                                                   │
-                                                          frontend/  (Next.js)
+                                                   frontend/  (static SPA, hash router)
 ```
 
 The three folders are **decoupled**: `research/` produces a bundle; `backend/`
 consumes only the bundle (its inference code is vendored in
-`app/sentinel_infer/`); `frontend/` talks only HTTP/WS to `backend/`. Retraining
-= re-run `sentinel-wm bundle`; no backend rebuild.
+`app/sentinel_infer/`); `frontend/` talks only HTTP/WS to `backend/` and needs no
+build step. Retraining = re-run `sentinel-wm bundle`; no backend rebuild.
 
 ---
 
