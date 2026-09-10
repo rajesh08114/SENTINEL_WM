@@ -80,6 +80,26 @@ rebuilding the backend image, just re-running `sentinel-wm bundle`.
 
 ---
 
+## Results
+
+Regenerated every run into [`runs/benchmarks/benchmark.md`](runs/benchmarks/benchmark.md)
+and [`runs/reports/RESEARCH_REPORT.md`](runs/reports/RESEARCH_REPORT.md). On the
+leakage-safe `stratified` split (all 5 CIC-IDS-2017 days), ranked by **PR-AUC**:
+
+| model | PR-AUC | F1\* | AUROC | notes |
+|---|---|---|---|---|
+| **SENTINEL-WM (system)** | **0.992** | 0.968 | 1.000 | #1; flattest horizon decay; + progression state, K-step MC rollout, ATT&CK phase |
+| lstm | 0.992 | 0.968 | 1.000 | ties on threshold-free metrics; pure attack classifier |
+| gru / tcn | 0.98 / 0.98 | 0.96 / 0.93 | 1.00 | |
+| SENTINEL-WM (raw) | 0.957 | 0.909 | 0.998 | |
+
+**Caveat:** the test set has ~76 positive sequences of easily-separable volumetric
+attacks, so the top models are within noise; it measures *now-casting a sustained
+attack*, not *onset forecasting* (`persistence` scores F1 0.99, lead time ~0 s).
+Full trust analysis: [`docs/technical_reference.md`](docs/technical_reference.md) §1.10.
+
+---
+
 ## License
 
 MIT (see `research/pyproject.toml`). CIC-IDS-2017 / CTU-13 / UNSW-NB15 are the

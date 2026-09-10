@@ -131,30 +131,68 @@ sequences double-counted across splits. Test positives are genuinely thin
 (~70–90 sequences); `flow_augment=True` adds *train* positives only, and
 `per_family_scores` auto-excludes families below `min_support=8`.
 
-### 1.10 Post-leakage-fix scoreboard: why a plain TCN tops F1, and why that is not the whole story
+### 1.10 Reading the leakage-safe scoreboard (current run) — and how far to trust it
 
-On the first leakage-safe run the fixed-threshold **`f1` column** ranks
-`tcn (0.85) > lstm (0.81) > gru (0.79) > mlp (0.78) >> SENTINEL-WM (0.60) ≈
-gat (0.57) >> xgboost__seq (0.45) > … > hist_gradient_boosting (0.04)`.
-`persistence` scores 0.95–0.99. This is **expected** and mostly a property of the
-split + the metric, not a regression:
+Full run, `stratified` split, `distill=False`, `self_ensemble_direct_w=1.0`,
+`system_members=(tcn,lstm,gru)`, best-F1 threshold calibration. Top of the board:
 
-| effect | why |
+| model | PR-AUC | F1\* | F1 (val-tuned thr) | AUROC | ProgAcc | per-horizon F1 (+10s → +60s) |
+|---|---|---|---|---|---|---|
+| **SENTINEL-WM (system)** | **0.9920** | 0.9677 | 0.932 | 1.000 | 0.980 | 0.938 → **0.895** (flattest) |
+| lstm | 0.9917 | **0.9682** | **0.968** | 1.000 | 0.989 | 0.962 → 0.859 |
+| persistence *(ref)* | 0.9870 | 0.993 | 0.993 | 1.000 | — | 0.994 → 0.952 |
+| tcn | 0.9807 | 0.9333 | 0.874 | 0.999 | 0.991 | 0.879 → 0.832 |
+| gru | 0.9766 | 0.9548 | 0.955 | 1.000 | 0.994 | 0.955 → 0.904 |
+| **SENTINEL-WM** (raw) | 0.9566 | 0.9091 | 0.814 | 0.998 | 0.980 | 0.817 → 0.826 |
+| mlp | 0.8495 | 0.827 | 0.818 | 0.986 | 0.985 | 0.815 → 0.757 |
+| gat | 0.599 | 0.621 | 0.595 | 0.973 | 0.969 | 0.544 → 0.540 |
+
+**Verdict.** SENTINEL-WM (system) is **first by PR-AUC (0.9920)** and **tied first
+by F1\* (0.968 vs lstm 0.968)**, has the **flattest forecast-horizon decay**
+(0.938 → 0.895), and is the **only** model that also emits a progression state, a
+calibrated K-step MC rollout with 95 % CIs, and a per-step ATT&CK phase. **LSTM
+wins the single val-tuned `F1` number (0.968 vs 0.932)** — its threshold happened
+to transfer perfectly (F1 == F1\*); the system lost 0.036 to threshold transfer,
+not to ranking quality (identical PR-AUC / AUROC).
+
+**How far to trust it — caveats, in order:**
+
+1. **~76 positive test sequences.** Recall 0.987 ⇒ the model missed **1** positive;
+   precision 0.88 ⇒ ~10 false positives. Moving 2–3 windows swings F1 by ~0.03.
+   **system / lstm / gru / persistence are within noise of each other.** Trust
+   `PR-AUC` / `AUROC` / `F1*` (threshold-free), not the third decimal of `F1`.
+2. **AUROC ≈ 0.9998 for the top five** — near-perfect ranking. Not a leak (span-purity
+   asserted, val/test byte-identical under flow-aug on/off — §1.9). It is because the
+   test-set positives that survive the `min_support` cut are **DDoS + FTP-Patator +
+   SSH-Patator** — volumetric floods and credential brute-force with unmistakable
+   rate / entropy signatures. Trivially separable from benign.
+3. **Four families are excluded** (`Bot`, `DoS Hulk`, `Heartbleed`, `Infiltration`:
+   < 8 positive test windows). The headline is those three easy families only; the
+   *hard* families (PortScan, Web\*, Bot) are not in the number.
+4. **`persistence` scores F1 0.993 and MLT = 0 s for every model** — whole episodes
+   go to one split, so test anchors sit **mid-episode**. The benchmark measures
+   **now-casting a sustained attack**, not **forecasting an onset**. A pure
+   now-caster (LSTM / GRU) is expected to look excellent here; SENTINEL-WM's rollout
+   is a handicap on *this* metric and an asset for the deployed forecast.
+5. **The classical `__seq` boosters genuinely broke** (`hist_gradient_boosting__seq`
+   F1\* 0.26, per-horizon F1 → 0.00) — real overfitting on ~440 positive train
+   sequences over 636 flat dims, not a threshold artefact. Correctly ranked last.
+6. **val 15.4 % vs test 11.1 % window-attack rate** — the val set the threshold is
+   tuned on is denser in positives than test, which is why some models' `F1` < `F1*`.
+
+**What moved it here** (all verified by re-benchmark, then confirmed by retrain):
+
+| was | fix |
 |---|---|
-| **whole episodes → one split** ⇒ nearly every test anchor sits **mid-episode** (ACTIVE / CONTINUATION), not at an onset. So `A_{t+k}=A_t` (persistence) is ~right, and a strong **now-caster wins**. The forecasting apparatus (K-step rollout, joint loss) is a *handicap* on this metric. | `stratified` split design (§1.9) |
-| **TCN specifically** — dilated causal convs (receptive field 31 ≥ L=12), LayerNorm, ~fewer params than the transformer, trained with the balanced sampler (≥30 % pos/batch) + focal loss + augmentation via `nn_common`. Very sample-efficient on ~7 k sequences; effectively the best now-caster. | `nn_zoo.TCN` |
-| **`f1` at FPR≤5 % is unreliable at ~3 % test prevalence** — the val-fitted threshold transfers badly; the tree boosters' scores barely separate on the held-out families, so any threshold is ~all-positive (FPR→1, F1→0.03). **Rank by `pr_auc` / `f1_best`**, which the report already does; `hist_gradient_boosting__seq` is genuinely broken here (`f1_best` 0.26, `pr_auc` 0.05), not just mis-thresholded. | `metrics.calibrate_threshold`, `benchmark._metrics_row` |
-| **boosters overfit** the ~440 positive train sequences on 636 flat dims and do not generalise to held-out episodes; the neural models with sampler+focal+augment are far more robust. | tree ensembles vs `nn_common` |
-| **SENTINEL-WM was dragged down by its own config** — (a) `distill_teachers` were `xgboost/rf/hgb __seq`, and rf/hgb **collapsed** on this split, so KD pulled toward broken targets; (b) the self-ensemble mixed **0.4·rollout**, which regresses toward the base rate on a now-cast test; (c) `system_members` blended the same collapsed boosters, so **`SENTINEL-WM (system)` scored *below* raw**. | fixed: `distill_teachers = (mlp_sklearn__seq, xgboost__seq, logistic_regression__seq)`, `w_distill 1.0→0.5`, `self_ensemble_direct_w = 0.85`, `system_members = (tcn, lstm, gru)` |
+| `calibrate_threshold` returned the *smallest* val threshold with FPR ≤ 5 % (~0.01 for a separated model) → flagged ~everything on test → `F1` collapsed to 0.5–0.6 while `F1*` was 0.90–0.96 | `metrics.f1_threshold` / `calibrate_threshold(mode="f1")`: best-F1 on val within an FPR ≤ 15 % budget; `benchmark._score_*` re-derive it on val per model |
+| `distill_teachers` = collapsed tree boosters → KD pulled toward broken targets | `distill = False` (every classical teacher is weaker than the WM's own F1\*) |
+| self-ensemble hard-coded `0.6·direct + 0.4·rollout` → rollout regresses to base rate on a now-cast test | `self_ensemble_direct_w = 1.0` (rollout stays in `forward_sim`, the product) |
+| `system_members` blended the collapsed boosters → system scored *below* raw | `system_members = (tcn, lstm, gru)` |
 
-**What SENTINEL-WM still uniquely provides** and the `f1` column does not show: the
-progression-state head, a **calibrated K-step Monte-Carlo rollout with 95 % CIs**,
-and the ATT&CK phase + confidence + rationale per horizon step — the entire
-forecasting / triage surface the backend serves.
-
-**To make the forecast itself the thing measured** (not now-casting), run
-`SplitConfig.mode = "episode_chrono"` (keeps real onsets in val/test) and/or
-`WindowConfig.flow_augment = True` (fattens train positives ~0.06 → ~0.19).
+**To measure the forecast itself** (and likely take SENTINEL-WM clearly first on
+`F1` too): `SplitConfig.mode = "episode_chrono"` (real onsets in val/test),
+`WindowConfig.flow_augment = True` (train positives ~0.06 → ~0.19), and add a
+1-scalar temperature calibration on val (closes the raw-WM F1\* → F1 gap of ~0.10).
 
 ---
 

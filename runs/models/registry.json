@@ -8,9 +8,9 @@
       "tensor": "window",
       "K": 6
     },
-    "threshold": 0.45,
+    "threshold": 0.515,
     "metrics": {
-      "f1": 0.11023622047244096,
+      "f1": 0.26490066225165565,
       "auroc": 0.36826913652847204,
       "mean_lead_time_s": 0.0
     }
@@ -24,9 +24,9 @@
       "tensor": "window",
       "K": 6
     },
-    "threshold": 0.5,
+    "threshold": 0.01,
     "metrics": {
-      "f1": 0.1365461847389558,
+      "f1": 0.11209439528023597,
       "auroc": 0.4989414877977066,
       "mean_lead_time_s": 0.0
     }
@@ -40,9 +40,9 @@
       "tensor": "window",
       "K": 6
     },
-    "threshold": 0.5,
+    "threshold": 0.015,
     "metrics": {
-      "f1": 0.0390625,
+      "f1": 0.053577722946774764,
       "auroc": 0.17176075664020385,
       "mean_lead_time_s": 10.0
     }
@@ -56,11 +56,11 @@
       "tensor": "sequence_flat",
       "K": 6
     },
-    "threshold": 0.5,
+    "threshold": 0.99,
     "metrics": {
-      "f1": 0.04530973451327433,
+      "f1": 0.08602150537634408,
       "auroc": 0.17628148583749875,
-      "mean_lead_time_s": 10.0
+      "mean_lead_time_s": 0.0
     }
   },
   "knn": {
@@ -72,9 +72,9 @@
       "tensor": "window",
       "K": 6
     },
-    "threshold": 0.12,
+    "threshold": 0.125,
     "metrics": {
-      "f1": 0.24215246636771304,
+      "f1": 0.25130890052356014,
       "auroc": 0.7491522101342742,
       "mean_lead_time_s": 0.0
     }
@@ -88,10 +88,10 @@
       "tensor": "window",
       "K": 6
     },
-    "threshold": 0.65,
+    "threshold": 0.62,
     "metrics": {
-      "f1": 0.22222222222222224,
-      "auroc": 0.8290698814074292,
+      "f1": 0.23645320197044334,
+      "auroc": 0.8291531902381652,
       "mean_lead_time_s": 0.0
     }
   },
@@ -104,9 +104,9 @@
       "tensor": "window",
       "K": 6
     },
-    "threshold": 0.85,
+    "threshold": 0.73,
     "metrics": {
-      "f1": 0.21301775147928992,
+      "f1": 0.24615384615384617,
       "auroc": 0.8234342840341077,
       "mean_lead_time_s": 0.0
     }
@@ -120,9 +120,9 @@
       "tensor": "sequence_flat",
       "K": 6
     },
-    "threshold": 0.5,
+    "threshold": 0.97,
     "metrics": {
-      "f1": 0.4378698224852071,
+      "f1": 0.5020242914979757,
       "auroc": 0.9608105459178673,
       "mean_lead_time_s": 0.0
     }
@@ -136,9 +136,9 @@
       "tensor": "window",
       "K": 6
     },
-    "threshold": 0.29000000000000004,
+    "threshold": 0.395,
     "metrics": {
-      "f1": 0.22712933753943218,
+      "f1": 0.24793388429752067,
       "auroc": 0.85078408311281,
       "mean_lead_time_s": 0.0
     }
@@ -152,9 +152,9 @@
       "tensor": "sequence_flat",
       "K": 6
     },
-    "threshold": 0.39,
+    "threshold": 0.515,
     "metrics": {
-      "f1": 0.6086956521739131,
+      "f1": 0.5828571428571429,
       "auroc": 0.9243653827305695,
       "mean_lead_time_s": 0.0
     }
@@ -168,11 +168,11 @@
       "tensor": "window",
       "K": 6
     },
-    "threshold": 0.6,
+    "threshold": 0.62,
     "metrics": {
-      "f1": 0.17073170731707318,
+      "f1": 0.26573426573426573,
       "auroc": 0.45469959815740474,
-      "mean_lead_time_s": 10.0
+      "mean_lead_time_s": 0.0
     }
   },
   "random_forest__seq": {
@@ -184,9 +184,9 @@
       "tensor": "sequence_flat",
       "K": 6
     },
-    "threshold": 0.86,
+    "threshold": 0.89,
     "metrics": {
-      "f1": 0.32941176470588235,
+      "f1": 0.4403669724770643,
       "auroc": 0.3972949132608056,
       "mean_lead_time_s": 0.0
     }
@@ -200,9 +200,9 @@
       "tensor": "window",
       "K": 6
     },
-    "threshold": 0.5,
+    "threshold": 0.99,
     "metrics": {
-      "f1": 0.030670470756062766,
+      "f1": 0.02806361085126286,
       "auroc": 0.22601685778692543,
       "mean_lead_time_s": 10.0
     }
@@ -216,9 +216,9 @@
       "tensor": "sequence_flat",
       "K": 6
     },
-    "threshold": 0.97,
+    "threshold": 0.99,
     "metrics": {
-      "f1": 0.45238095238095233,
+      "f1": 0.42735042735042733,
       "auroc": 0.8113839066941095,
       "mean_lead_time_s": 0.0
     }
@@ -231,10 +231,10 @@
     "input": {
       "tensor": "graph_sequence"
     },
-    "threshold": 0.39,
+    "threshold": 0.615,
     "params": 246820,
     "metrics": {
-      "f1": 0.6101694915254237,
+      "f1": 0.5949367088607596,
       "auroc": 0.9732088601391747,
       "mean_lead_time_s": 0.0,
       "progression_acc": 0.9686104068574188
@@ -248,13 +248,13 @@
     "input": {
       "tensor": "sequence"
     },
-    "threshold": 0.03,
+    "threshold": 0.435,
     "params": 191140,
     "metrics": {
-      "f1": 0.7638190954773869,
-      "auroc": 0.99921591688719,
+      "f1": 0.9548387096774194,
+      "auroc": 0.9995001470155835,
       "mean_lead_time_s": 0.0,
-      "progression_acc": 0.9929977061451165
+      "progression_acc": 0.9939635397802729
     }
   },
   "lstm": {
@@ -265,13 +265,13 @@
     "input": {
       "tensor": "sequence"
     },
-    "threshold": 0.03,
+    "threshold": 0.9500000000000001,
     "params": 247716,
     "metrics": {
-      "f1": 0.7755102040816326,
-      "auroc": 0.999529550132314,
+      "f1": 0.9681528662420382,
+      "auroc": 0.9997843771439772,
       "mean_lead_time_s": 0.0,
-      "progression_acc": 0.9908245804660147
+      "progression_acc": 0.989315465411083
     }
   },
   "mlp": {
@@ -282,13 +282,13 @@
     "input": {
       "tensor": "sequence"
     },
-    "threshold": 0.3,
+    "threshold": 0.9,
     "params": 519460,
     "metrics": {
-      "f1": 0.7821229050279329,
-      "auroc": 0.9887239047339017,
+      "f1": 0.8176100628930818,
+      "auroc": 0.9863961579927473,
       "mean_lead_time_s": 0.0,
-      "progression_acc": 0.9875045273451648
+      "progression_acc": 0.985089943257274
     }
   },
   "tcn": {
@@ -299,35 +299,34 @@
     "input": {
       "tensor": "sequence"
     },
-    "threshold": 0.04,
+    "threshold": 0.365,
     "params": 172644,
     "metrics": {
-      "f1": 0.7653061224489796,
-      "auroc": 0.9990296971478976,
+      "f1": 0.874251497005988,
+      "auroc": 0.9993531314319318,
       "mean_lead_time_s": 0.0,
-      "progression_acc": 0.9901605698418448
+      "progression_acc": 0.9914282264879875
     }
   },
   "SENTINEL-WM": {
     "family": "world_model",
     "framework": "torch",
-    "kind": "gru+STN (self-ensemble, 3 snap)",
+    "kind": "gru+STN (self-ensemble, 2 snap)",
     "path": "models\\world_model.pt",
     "input": {
       "tensor": "sequence",
       "L": 12,
       "K": 6
     },
-    "threshold": 0.18000000000000002,
+    "threshold": 0.86,
     "snapshots": [
       "artifacts\\world_model_snapshots\\snap_ep060.pt",
-      "artifacts\\world_model_snapshots\\snap_ep090.pt",
-      "artifacts\\world_model_snapshots\\snap_ep120.pt"
+      "artifacts\\world_model_snapshots\\snap_ep090.pt"
     ],
     "self_ensemble": true,
     "metrics": {
-      "f1": 0.5779467680608364,
-      "auroc": 0.9980397922179751
+      "f1": 0.8187134502923976,
+      "auroc": 0.9981280015681662
     }
   },
   "SENTINEL-WM-system": {

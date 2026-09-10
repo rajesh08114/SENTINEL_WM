@@ -344,20 +344,24 @@ The live table is `runs/benchmarks/benchmark.md`; the narrative with every
 claim linked to its file is `runs/reports/RESEARCH_REPORT.md`. Regenerate
 with `python -m sentinel_wm.research all`.
 
-What to look for (`stratified` split, all 5 days), ranked by **PR-AUC**:
+What to look for (`stratified` split, all 5 days). **Rank by `PR-AUC` / `F1*` /
+`AUROC`** (threshold-free) — the test set has only ~76 positive sequences, so the
+val-tuned `F1` column's third decimal is noise. Full analysis + caveats:
+[`technical_reference.md`](technical_reference.md) §1.10.
 
-* **XGBoost / RandomForest on `__seq`** are the strongest *nowcast* F1 — a fair,
-  strong floor. The proposal only required logistic regression; this is much more.
-* **SENTINEL-WM** is the model that (a) **holds F1 as the horizon grows**,
-  (b) produces **non-zero Mean Lead Time** with a calibrated probability,
-  (c) carries the **progression-state head** and the **K-step Monte-Carlo rollout
-  with ATT&CK phase + confidence** — none of which the baselines have. A tree
-  ensemble that only sees `S_t` (or even `__seq`) nowcasts a sustained flood well
-  but forecasts *onset* at ~0 s lead time.
-* **LSTM / GRU / TCN / GAT** show that temporal/graph architecture helps, but the
-  probabilistic state-transition core + rollout is what buys the lead time.
-* Progression-state accuracy, Brier(k1), ECE(k1) are in the `*_metrics.json` and
-  the benchmark CSV.
+* **`SENTINEL-WM (system)` leads by PR-AUC (~0.992)** and ties LSTM on `F1*`
+  (~0.968); it has the flattest forecast-horizon decay and is the only model that
+  also emits a progression state + calibrated K-step MC rollout + per-step ATT&CK
+  phase. **LSTM wins the single val-tuned `F1` number** (its threshold transferred
+  perfectly) — within noise of the system on every threshold-free metric.
+* **`persistence` scores F1 ~0.99 and Mean Lead Time is ~0 s for every model** —
+  whole episodes go to one split, so test anchors sit mid-episode. This benchmark
+  measures **now-casting a sustained attack**, not forecasting an onset. Use
+  `SplitConfig.mode="episode_chrono"` and/or `WindowConfig.flow_augment=True` to
+  measure the forecast itself.
+* The classical `__seq` tree boosters **genuinely overfit** the ~440 positive
+  train sequences (`hist_gradient_boosting__seq` F1* 0.26) — correctly last.
+* Progression-state accuracy (~0.98), Brier(k1), ECE(k1) are in the benchmark CSV.
 
 **Per-attack-family breakdown** — `runs/benchmarks/per_family.csv` +
 `benchmark.md` block scores each family against the shared benign background;

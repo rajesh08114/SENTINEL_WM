@@ -395,10 +395,13 @@ def _write_tables(rows, seq, te, cfg, verbose):
         return "-" if v is None or v == "" else (f"{v:.{p}f}" if isinstance(v, float) else str(v))
     md = ["# SENTINEL-WM - Full Model Benchmark", "",
           f"Test split = **Friday** ({int(te.sum())} sequences, "
-          f"{seq['y_atk'][te].max(1).mean():.1%} attack). Threshold FPR-calibrated on validation (Thursday).",
+          f"{seq['y_atk'][te].max(1).mean():.1%} attack). Threshold = best-F1 on "
+          f"validation within an FPR<=15% budget (per model).",
           "", "## Ranked by PR-AUC (threshold-free)", "",
-          "`F1` = at the FPR<=5% threshold - `F1*` = best achievable by sweeping "
-          "the threshold - `PR-AUC` = threshold-free.",
+          "`F1` = at the val-tuned best-F1 threshold - `F1*` = best achievable by "
+          "sweeping the threshold on test (ceiling) - `PR-AUC` / `AUROC` = "
+          "threshold-free. With ~76 positive test sequences the top cluster is "
+          "within noise; PR-AUC / F1* / AUROC are the trustworthy ranks.",
           "",
           "| Model | Family | In | F1 | F1* | PR-AUC | Prec | Rec | FPR | AUROC | "
           "Brier | ECE | MLT (s) | Detect | FA | ProgAcc | Params | infer ms |",

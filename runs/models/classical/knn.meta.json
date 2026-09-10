@@ -4,7 +4,7 @@
   "input_kind": "window",
   "horizon": 6,
   "n_features": 53,
-  "threshold": 0.12,
+  "threshold": 0.125,
   "feature_names": [
     "flow_count",
     "packet_count",
@@ -61,7 +61,7 @@
     "d_failed_conn_ratio"
   ],
   "metrics": {
-    "f1": 0.24215246636771304,
+    "f1": 0.25130890052356014,
     "auroc": 0.7491522101342742,
     "mean_lead_time_s": 0.0
   }

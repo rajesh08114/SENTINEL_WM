@@ -3,12 +3,12 @@
   "family": "nn",
   "kind": "lstm",
   "params": 247716,
-  "threshold": 0.03,
+  "threshold": 0.9500000000000001,
   "epochs_run": 50,
   "metrics": {
-    "f1": 0.7755102040816326,
-    "auroc": 0.999529550132314,
+    "f1": 0.9681528662420382,
+    "auroc": 0.9997843771439772,
     "mean_lead_time_s": 0.0,
-    "progression_acc": 0.9908245804660147
+    "progression_acc": 0.989315465411083
   }
 }

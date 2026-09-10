@@ -4,7 +4,7 @@
   "input_kind": "sequence",
   "horizon": 6,
   "n_features": 636,
-  "threshold": 0.86,
+  "threshold": 0.89,
   "feature_names": [
     "flow_count",
     "packet_count",
@@ -61,7 +61,7 @@
     "d_failed_conn_ratio"
   ],
   "metrics": {
-    "f1": 0.32941176470588235,
+    "f1": 0.4403669724770643,
     "auroc": 0.3972949132608056,
     "mean_lead_time_s": 0.0
   }

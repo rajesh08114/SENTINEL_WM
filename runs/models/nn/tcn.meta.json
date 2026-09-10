@@ -3,12 +3,12 @@
   "family": "nn",
   "kind": "tcn",
   "params": 172644,
-  "threshold": 0.04,
+  "threshold": 0.365,
   "epochs_run": 50,
   "metrics": {
-    "f1": 0.7653061224489796,
-    "auroc": 0.9990296971478976,
+    "f1": 0.874251497005988,
+    "auroc": 0.9993531314319318,
     "mean_lead_time_s": 0.0,
-    "progression_acc": 0.9901605698418448
+    "progression_acc": 0.9914282264879875
   }
 }

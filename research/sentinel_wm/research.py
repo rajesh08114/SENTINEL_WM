@@ -313,8 +313,10 @@ def step_report(verbose=True):
         "[ROC](../figures/roc.png), [PR](../figures/pr.png), "
         "[lead time](../figures/lead_time.png)", "",
         "Ranked by **PR-AUC** (threshold-free; robust to the val->test attack-"
-        "prevalence shift). `F1` = at the FPR<=5% threshold; `F1*` = best "
-        "achievable by sweeping it.", "",
+        "prevalence shift). `F1` = at the val-tuned best-F1 threshold; `F1*` = "
+        "test-set ceiling. The test set has ~76 positive sequences, so the top "
+        "cluster (system / lstm / gru / persistence) is within noise - trust "
+        "PR-AUC / F1* / AUROC.", "",
         "| Model | Family | PR-AUC | F1 | F1* | AUROC | MLT (s) | Detect | ProgAcc |",
         "|---|---|---|---|---|---|---|---|---|",
     ]
@@ -399,11 +401,15 @@ def step_report(verbose=True):
          f"{wm['detection_rate']:.2f}) is the only model that also carries a "
          f"progression-state head and a calibrated K-step Monte-Carlo rollout "
          f"with ATT&CK phase + confidence. " if wm else "") +
-        f"The `F1` column lags `F1*` because the FPR<=5% threshold is fitted on "
-        f"validation (higher attack prevalence) and transfers imperfectly to the "
-        f"test day; PR-AUC / AUROC / F1* are the fair headline numbers. Mean Lead "
-        f"Time stays low under the block split (attacks land mid-episode); use "
-        f"`SplitConfig.mode='episode_chrono'` for a lead-time-focused run.")]
+        f"`F1` can lag `F1*` when a model's val threshold transfers imperfectly "
+        f"to the test prevalence; PR-AUC / AUROC / F1* are the fair headline "
+        f"numbers, and with ~76 positive test sequences the top models are "
+        f"within noise of each other. Mean Lead Time is ~0 s for every model "
+        f"because the leakage-safe `stratified` split puts whole episodes on one "
+        f"side, so test anchors sit mid-episode - the benchmark measures "
+        f"now-casting, not onset forecasting. Use "
+        f"`SplitConfig.mode='episode_chrono'` and/or `WindowConfig.flow_augment` "
+        f"to measure the forecast itself. See docs/technical_reference.md 1.10.")]
 
     md += [
         "", "## 4. Explainability", "",
