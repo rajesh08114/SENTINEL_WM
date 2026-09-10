@@ -30,6 +30,9 @@ class SyntheticSource:
     def request_stop(self) -> None:
         self._stop = True
 
+    async def stop(self) -> None:            # uniform with AgentSource
+        self._stop = True
+
     def _shift(self, rows: list[dict]) -> list[dict]:
         for r in rows:
             r["flow_start_epoch"] = round(self.base_epoch + r["flow_start_epoch"], 6)
@@ -79,4 +82,9 @@ class AgentSource:
 
     async def stop(self) -> None:
         if self.agent is not None:
-            await self.agent.send_cmd({"cmd": "stop"})
+            try:
+                await self.agent.send_cmd({"cmd": "stop"})
+            finally:
+                unbind = getattr(self.agent, "unbind", None)
+                if callable(unbind):
+                    unbind()

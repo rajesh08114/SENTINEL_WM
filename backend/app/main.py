@@ -17,6 +17,7 @@ async def lifespan(app: FastAPI):
     from app.jobs import store, worker
     from app.inference.loader import (BundleContractError, BundleNotFound,
                                       get_engine)
+    from app.agent.registry import REGISTRY
     from app.live.session import MANAGER
 
     store.init_db()
@@ -26,7 +27,8 @@ async def lifespan(app: FastAPI):
     except (BundleNotFound, BundleContractError) as e:
         print(f"[startup] WARNING - {e}")   # /health reports 'degraded' until a bundle appears
 
-    MANAGER.sessions.clear()                 # fresh registry per process
+    MANAGER.sessions.clear()                 # fresh registries per process
+    REGISTRY._agents.clear()
     reaper = asyncio.create_task(MANAGER.reap_idle())
     try:
         yield
@@ -50,12 +52,13 @@ def create_app() -> FastAPI:
         allow_methods=["*"], allow_headers=["*"],
     )
 
-    from app.api import (routes_forecast, routes_jobs, routes_live, routes_meta,
-                         ws_stream)
+    from app.api import (routes_agent, routes_forecast, routes_jobs, routes_live,
+                         routes_meta, ws_stream)
     app.include_router(routes_meta.router)
     app.include_router(routes_forecast.router)
     app.include_router(routes_jobs.router)
     app.include_router(routes_live.router)
+    app.include_router(routes_agent.router)
     app.include_router(ws_stream.router)
     return app
 

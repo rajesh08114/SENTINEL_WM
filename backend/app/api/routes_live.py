@@ -24,6 +24,13 @@ from app.synth.scenarios import SCENARIOS, build_config
 
 router = APIRouter(prefix="/live", tags=["live"])
 
+# so the ATT&CK mapper can name a tactic for a synthetic run (normalise_upload
+# strips the row-level attack_family; the scenario is the ground truth we have)
+_SCENARIO_FAMILY_HINT = {
+    "portscan": "PortScan", "dos_hulk": "DoS Hulk", "bruteforce": "SSH-Patator",
+    "botnet_c2": "Bot", "exfil": "Infiltration", "benign": None,
+}
+
 
 @router.post("/sessions", response_model=LiveSessionInfo, status_code=201)
 async def create_session(body: LiveSessionCreate) -> LiveSessionInfo:
@@ -35,11 +42,12 @@ async def create_session(body: LiveSessionCreate) -> LiveSessionInfo:
                 attacker_ip=body.attacker_ip, victim_ip=body.victim_ip)
         except KeyError:
             raise HTTPException(422, f"unknown scenario; have {sorted(SCENARIOS)}")
+        hint = body.family_hint or _SCENARIO_FAMILY_HINT.get(cfg.name)
         try:
             s = MANAGER.create("synthetic", {
                 "scenario": cfg.name, "rate": cfg.rate, "duration_s": cfg.duration_s,
                 "seed": cfg.seed, "speed": cfg.speed,
-                "family_hint": body.family_hint, "explain": body.explain})
+                "family_hint": hint, "explain": body.explain})
         except LiveCapacityError as e:
             raise HTTPException(409, str(e))
         src = SyntheticSource(s, cfg)
@@ -50,10 +58,7 @@ async def create_session(body: LiveSessionCreate) -> LiveSessionInfo:
     if body.source == "capture":
         if not settings.agent_enabled:
             raise HTTPException(503, "capture agent support is disabled")
-        try:
-            from app.agent.registry import REGISTRY
-        except ModuleNotFoundError:
-            raise HTTPException(503, "no capture agent connected")
+        from app.agent.registry import REGISTRY
         agent = REGISTRY.first()
         if agent is None:
             raise HTTPException(503, "no capture agent connected")

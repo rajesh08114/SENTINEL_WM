@@ -34,6 +34,7 @@ class LiveSession:
         self.created_at = time.time()
         self.last_activity = self.created_at
         self._tasks: set[asyncio.Task] = set()
+        self._source: Any = None            # set by the route that starts the source
 
         if windower is not None:
             self._win = windower
@@ -97,9 +98,15 @@ class LiveSession:
         task.add_done_callback(self._tasks.discard)
 
     async def stop(self) -> None:
-        if self.state == "stopped":
+        if self.state in ("stopping", "stopped"):
             return
         self.state = "stopping"
+        src = self._source
+        if src is not None and hasattr(src, "stop"):
+            try:
+                await src.stop()
+            except Exception:
+                pass
         for t in list(self._tasks):
             t.cancel()
         try:
