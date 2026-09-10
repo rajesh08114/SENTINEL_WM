@@ -24,13 +24,13 @@ python -m sentinel_wm.research all           # ~30-45 min on a GPU
 python -m sentinel_wm.research all --quick   # small epochs, ~10 min
 
 python -m sentinel_wm.cli all                # lighter: phase runner, ends at the benchmark
-sentinel-wm bundle ../models                 # assemble the deploy bundle for backend/
+sentinel-wm bundle ../backend/models                 # assemble the deploy bundle for backend/
 ```
 
 `research all` populates **`../runs/`** (models, benchmarks, figures,
 explainability, simulations, `reports/RESEARCH_REPORT.md`). Pipeline working files
 stay in **`../artifacts/`** (parquet, `world_model.pt`, `graph_windows.npz`,
-scaler). The portable **`../models/`** bundle is what the backend loads.
+scaler). The portable **`../backend/models/`** bundle is what the backend loads.
 
 ---
 
@@ -56,7 +56,7 @@ research/                            the ML workspace (this guide)
   benchmark.py           unified scoreboard: every saved model, same test anchors
   registry.py            one uniform loader for every saved model (for the app)
   research.py            orchestrator -> the runs/ folder
-  bundle.py              `sentinel-wm bundle` -> the portable ../models/ deploy bundle
+  bundle.py              `sentinel-wm bundle` -> ../backend/models/ (shipped in the backend)
   evaluate.py            back-compat shim -> benchmark.py
   metrics.py             shared metric fns (F1/FPR/AUROC, Brier/ECE, Mean Lead Time)
   cli.py                 the offline command-line interface (all of the above)
@@ -72,7 +72,7 @@ docs/        proposal.md  plan_validation.md  guide.md  technical_reference.md
 data/        input CSVs (gitignored) - see data/README.md
 artifacts/   pipeline working files (gitignored)
 runs/        generated benchmark study (gitignored) - see research/README.md
-models/      the deploy bundle the backend loads (gitignored; `sentinel-wm bundle`)
+backend/models/  the deploy bundle, shipped inside the backend (gitignored)
 backend/  frontend/   the serving application
 ```
 

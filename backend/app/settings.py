@@ -17,8 +17,9 @@ class Settings(BaseSettings):
         protected_namespaces=(),
     )
 
-    # path to the model bundle (`sentinel-wm bundle`). Accepts SENTINEL_WM_MODEL_DIR.
-    bundle_dir: Path = Field(default=_HERE.parent / "models",
+    # path to the model bundle (`sentinel-wm bundle`). Ships inside backend/ so
+    # the service is self-contained (code + models). Accepts SENTINEL_WM_MODEL_DIR.
+    bundle_dir: Path = Field(default=_HERE / "models",
                              validation_alias="SENTINEL_WM_MODEL_DIR")
     device: str = "cpu"
     # "auto" (system blend if the bundle has the members, else world_model) |

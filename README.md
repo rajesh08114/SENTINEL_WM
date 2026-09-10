@@ -21,7 +21,7 @@ attacker progression and support proactive cyber defence using World Models."*
 | **[`research/`](research/)** | the ML workspace — the `sentinel_wm` package (preprocessing → state windows → sequences → model zoo → world model → benchmark → explainability → forward simulation), the `extraction/` PCAP tooling, and the phase notebooks. CLI + JSON artifacts. |
 | **[`backend/`](backend/)** | a **self-contained** FastAPI service (inference code vendored in `app/sentinel_infer/`, no `research/` import) that loads a **model bundle** and scores incoming traffic (flow CSV upload, PCAP upload, or a live telemetry WebSocket) → per-horizon forecasts **with explanations and ATT&CK phase mapping**. |
 | **[`frontend/`](frontend/)** | a Next.js UI for uploads, live monitoring, and the forecast / explanation / ATT&CK views. |
-| `models/` | the portable model **bundle** the backend loads (`sentinel-wm bundle`); regenerable, git-ignored. |
+| `backend/models/` | the portable model **bundle** (`sentinel-wm bundle`), shipped *inside* the backend so it deploys as one unit; regenerable, git-ignored. |
 | `data/` · `artifacts/` · `runs/` | raw CSVs · pipeline working files · generated benchmark study. All git-ignored. |
 | `docs/` | [`guide.md`](docs/guide.md) (usage manual), [`system_architecture.md`](docs/system_architecture.md) (**SENTINEL-WM (system)** — every layer, param, forward/backward pass), [`technical_reference.md`](docs/technical_reference.md) (loss / rollout / ATT&CK / leakage-control detail), [`proposal.md`](docs/proposal.md), [`plan_validation.md`](docs/plan_validation.md). |
 
@@ -35,7 +35,7 @@ attacker progression and support proactive cyber defence using World Models."*
 cd research
 pip install -e ".[benchmark]"
 python -m sentinel_wm.research all          # data → zoo → world model → benchmark → report
-sentinel-wm bundle ../models               # assemble the portable bundle the backend loads
+sentinel-wm bundle ../backend/models               # assemble the portable bundle the backend loads
 ```
 
 Details + the zero-shot secondary benchmark: [`research/RUN.md`](research/RUN.md).
@@ -45,7 +45,7 @@ Details + the zero-shot secondary benchmark: [`research/RUN.md`](research/RUN.md
 ```bash
 cd backend
 pip install -e .
-SENTINEL_WM_MODEL_DIR=../models uvicorn app.main:app --reload
+uvicorn app.main:app --reload
 #   POST /forecast/csv   (flow-CSV upload → forecast JSON)
 #   WS   /stream         (telemetry: stream NDJSON flow records, receive forecasts)
 #   GET  /meta  /models  /health
@@ -54,7 +54,7 @@ SENTINEL_WM_MODEL_DIR=../models uvicorn app.main:app --reload
 ### 3. Or everything in containers
 
 ```bash
-docker compose up --build          # backend (+ frontend); mounts ./models as a volume
+docker compose up --build          # backend (+ frontend); mounts ./backend/models as a volume
 ```
 
 ---
@@ -62,12 +62,12 @@ docker compose up --build          # backend (+ frontend); mounts ./models as a 
 ## How the pieces connect
 
 ```
-       research/                       models/  (the bundle = the ONLY interface)
+       research/               backend/models/  (the bundle = the ONLY interface)
   raw CSV/PCAP ─► sentinel_wm ─► sentinel-wm bundle ─► world_model.pt · state_scaler.pkl
                  train+benchmark                        models/nn/{tcn,lstm,gru}.pt
                                                         bundle.json (feature_names, blend_w)
-                                                                  │  (mounted volume)
-       backend/  (self-contained; app/sentinel_infer/ is vendored, no research import)
+                                                                  │
+       backend/  (self-contained: app/sentinel_infer/ vendored + models/ shipped in)
    CSV · PCAP · WS stream ─► clean → state windows → scaler → simulate_anchor + blend
                                                                   │
                           forecast JSON:  per-horizon P(attack)+CI · detection_prob

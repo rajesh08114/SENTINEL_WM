@@ -52,17 +52,18 @@ DATA_DIR = os.path.join(ROOT, "data")
 ARTIFACTS = os.path.join(ROOT, "artifacts")
 os.makedirs(ARTIFACTS, exist_ok=True)
 
-# A portable, self-contained model bundle assembled by `sentinel-wm bundle`
-# (see sentinel_wm/bundle.py). The serving backend reads ONLY from here, so it
-# depends on neither the research working tree nor `runs/`. Falls back to
-# <ROOT>/models when SENTINEL_WM_MODEL_DIR is unset.
-MODEL_DIR = os.environ.get("SENTINEL_WM_MODEL_DIR") or os.path.join(ROOT, "models")
+# A portable, self-contained model bundle assembled by `sentinel-wm bundle`.
+# Its canonical home is `<ROOT>/backend/models/` so the backend ships code AND
+# models together (it never imports research code - only reads this directory).
+# Override with SENTINEL_WM_MODEL_DIR.
+_DEFAULT_MODEL_DIR = os.path.join(ROOT, "backend", "models")
+MODEL_DIR = os.environ.get("SENTINEL_WM_MODEL_DIR") or _DEFAULT_MODEL_DIR
 
 
 def model_dir() -> str:
     """Live value of the deploy-bundle dir (re-reads SENTINEL_WM_MODEL_DIR each
     call, so a test / server that sets it after import still takes effect)."""
-    return os.environ.get("SENTINEL_WM_MODEL_DIR") or os.path.join(ROOT, "models")
+    return os.environ.get("SENTINEL_WM_MODEL_DIR") or _DEFAULT_MODEL_DIR
 
 
 def bundled(*rel: str):

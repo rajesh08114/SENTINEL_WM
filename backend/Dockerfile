@@ -1,13 +1,14 @@
 # SENTINEL-WM inference backend - fully self-contained (no research tree).
 #   docker build -t sentinel-wm-backend backend/
-# The model bundle is NOT baked in - mount it at /models:
-#   docker run -p 8000:8000 -v "$PWD/models:/models:ro" sentinel-wm-backend
+# `backend/models/` (the bundle, if present) is COPIED in, so the image runs
+# standalone. To update models without a rebuild, mount over it:
+#   docker run -p 8000:8000 -v "$PWD/backend/models:/app/models:ro" sentinel-wm-backend
 FROM python:3.11-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    SENTINEL_WM_MODEL_DIR=/models \
+    SENTINEL_WM_MODEL_DIR=/app/models \
     SENTINEL_JOB_DIR=/app/data/jobs \
     SENTINEL_DEVICE=cpu
 
@@ -20,7 +21,7 @@ COPY . /app
 
 RUN pip install . \
  && useradd -m -u 10001 sentinel \
- && mkdir -p /app/data/jobs /models \
+ && mkdir -p /app/data/jobs /app/models \
  && chown -R sentinel:sentinel /app
 
 USER sentinel

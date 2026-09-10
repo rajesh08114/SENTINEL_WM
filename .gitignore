@@ -14,8 +14,10 @@ runs/models/**/*.pt
 runs/simulations/forward_sim_test.json
 runs_zeroshot/
 
-# --- models/ : the portable deploy bundle (`sentinel-wm bundle`) - fully regenerable
+# --- the deploy bundle (`sentinel-wm bundle`) - regenerable model binaries.
+#     Its canonical home is backend/models/ (shipped inside the backend).
 /models/
+backend/models/
 
 # --- backend / frontend runtime
 backend/data/

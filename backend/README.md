@@ -25,14 +25,13 @@ persisted `RobustScaler` → `simulate_anchor` (+ member blend).
 ## Run
 
 ```bash
-# 0. build the bundle once (in ../research; the ONLY thing the backend needs):
-cd ../research && python -m sentinel_wm.research all && python -m sentinel_wm.cli bundle ../models
+# 0. build the bundle once (in ../research) - it lands in backend/models/:
+cd ../research && python -m sentinel_wm.research all && python -m sentinel_wm.cli bundle ../backend/models
 
-# 1. install + run  (no ../research dependency)
+# 1. install + run  (no ../research dependency; reads ./models by default)
 cd ../backend
 pip install -e ".[dev]"
-cp .env.example .env                       # edit SENTINEL_WM_MODEL_DIR if needed
-SENTINEL_WM_MODEL_DIR=../models uvicorn app.main:app --reload
+uvicorn app.main:app --reload
 ```
 
 `GET /docs` for the interactive API. Tests need **no** trained model — they build

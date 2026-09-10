@@ -30,7 +30,7 @@ rm -f artifacts/clean_flows.parquet artifacts/clean_flows_aug.parquet \
       artifacts/state_windows.parquet artifacts/sequences.npz \
       artifacts/graph_windows.npz artifacts/state_scaler.pkl \
       artifacts/graph_node_scaler.pkl artifacts/world_model.pt
-rm -rf runs/models runs/benchmarks models
+rm -rf runs/models runs/benchmarks backend/models
 ```
 
 **PowerShell**
@@ -40,7 +40,7 @@ Remove-Item artifacts\clean_flows.parquet, artifacts\clean_flows_aug.parquet, `
             artifacts\state_windows.parquet, artifacts\sequences.npz, `
             artifacts\graph_windows.npz, artifacts\state_scaler.pkl, `
             artifacts\graph_node_scaler.pkl, artifacts\world_model.pt -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force runs\models, runs\benchmarks, models -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force runs\models, runs\benchmarks, backend\models -ErrorAction SilentlyContinue
 ```
 
 Then `cd research` for the `python -m sentinel_wm.…` commands below.
