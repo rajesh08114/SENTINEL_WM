@@ -8,8 +8,9 @@ export default defineConfig({
   fullyParallel: true,
   retries: 0,
   use: { baseURL: "http://localhost:3100", trace: "on-first-retry" },
+  // static export -> serve the `out/` dir (run `next build` first)
   webServer: {
-    command: "npx next start -p 3100",
+    command: "npx -y serve out -l 3100",
     url: "http://localhost:3100",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
