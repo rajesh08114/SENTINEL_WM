@@ -1,8 +1,16 @@
 # backend/ — SENTINEL-WM inference API
 
-FastAPI service that loads the trained **model bundle** (`../models/`, built by
-`sentinel-wm bundle`) and turns incoming traffic into per-horizon
-attack-progression forecasts **with explanations and MITRE ATT&CK phase mapping**.
+FastAPI service that loads a trained **model bundle** directory and turns
+incoming traffic into per-horizon attack-progression forecasts **with
+explanations and MITRE ATT&CK phase mapping**.
+
+**Self-contained.** The inference code is vendored in
+[`app/sentinel_infer/`](app/sentinel_infer) — the backend has **no dependency on
+`../research`**. Its only interface is the bundle directory
+(`SENTINEL_WM_MODEL_DIR`, produced by `sentinel-wm bundle` in `research/`). Copy
+`backend/` + a `models/` bundle anywhere and it runs. Drift between the vendored
+copy and the research source is caught by `tests/test_vendor_sync.py` and by a
+`feature_names` contract check in `bundle.json`.
 
 It serves **SENTINEL-WM (system)** — the world model (direct head + K-step MC
 rollout + snapshots) whose per-horizon P(attack) is blended (validation-tuned
@@ -10,20 +18,19 @@ weight from `bundle.json`) with three decorrelated sequence nets (`tcn`, `lstm`,
 `gru`) for the sharpest detection. The **forecast narrative** — `attack_prob`
 with its 95 % CI, progression state, ATT&CK phase — stays the world model's; the
 blended value lands in `detection_prob` and drives the alert / lead-time. Set
-`SENTINEL_SERVE_MODE=world_model` to skip the members. Pipeline reuses the
-research package: `preprocessing.clean_flow_frame` →
-`state_windows.build_state_windows` → persisted `RobustScaler` →
-`forward_sim.simulate_anchor` (+ member blend).
+`SENTINEL_SERVE_MODE=world_model` to skip the members. Pipeline
+(`app/sentinel_infer/forecast.py`): `clean_flow_frame` → `build_state_windows` →
+persisted `RobustScaler` → `simulate_anchor` (+ member blend).
 
 ## Run
 
 ```bash
-# 0. build the bundle once (in ../research):
+# 0. build the bundle once (in ../research; the ONLY thing the backend needs):
 cd ../research && python -m sentinel_wm.research all && python -m sentinel_wm.cli bundle ../models
 
-# 1. install + run
+# 1. install + run  (no ../research dependency)
 cd ../backend
-pip install -e ../research && pip install -e ".[dev]"
+pip install -e ".[dev]"
 cp .env.example .env                       # edit SENTINEL_WM_MODEL_DIR if needed
 SENTINEL_WM_MODEL_DIR=../models uvicorn app.main:app --reload
 ```
@@ -71,16 +78,18 @@ a throwaway random bundle: `python -m pytest -q`.
 
 ```
 app/
-  main.py             FastAPI factory + lifespan (loads the model once)
-  settings.py         pydantic-settings; exports SENTINEL_WM_MODEL_DIR
-  schemas.py          response models
-  inference/loader.py  Engine singleton (model + ckpt + scaler + explainer)
-  inference/pipeline.py  flows -> state windows -> tensors -> simulate_anchor
-  streaming/windower.py  online 10 s windowing for the telemetry WS
-  jobs/store.py        SQLite job status
-  jobs/worker.py       ThreadPoolExecutor (shared in-process model)
-  api/                 routes_meta / routes_forecast / routes_jobs / ws_stream
-tests/                 pytest (random-bundle fixture) + ws_smoke.py
+  main.py               FastAPI factory + lifespan (loads the engine once)
+  settings.py           pydantic-settings (SENTINEL_* env)
+  schemas.py            response models
+  sentinel_infer/       VENDORED, self-contained inference lib (see its README):
+    schema · attack_stages · preprocess · windows · net · explain · forecast
+  inference/loader.py   get_engine() -> sentinel_infer.forecast.load_bundle(...)
+  inference/pipeline.py thin adapter: forecast(df) -> engine.forecast(df)
+  streaming/windower.py online 10 s windowing for the telemetry WS
+  jobs/store.py         SQLite job status
+  jobs/worker.py        ThreadPoolExecutor (shared in-process engine)
+  api/                  routes_meta / routes_forecast / routes_jobs / ws_stream
+tests/                  pytest (random-bundle fixture) + test_vendor_sync + ws_smoke.py
 ```
 
 ## Not in the MVP (see the plan)

@@ -1,5 +1,4 @@
-# install order matters: the research package first, then the backend
--e ../research
+# Self-contained backend - no dependency on ../research.
+# For a CPU-only image, install the CPU torch wheel first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
 -e .
-# torch is pulled in by ../research; for a CPU-only image install the CPU wheel
-# explicitly first:  pip install torch --index-url https://download.pytorch.org/whl/cpu

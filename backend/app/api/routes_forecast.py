@@ -6,7 +6,7 @@ import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 
-from app.inference.loader import BundleNotFound, get_engine
+from app.inference.loader import BundleContractError, BundleNotFound, get_engine
 from app.inference.pipeline import BadUpload, forecast
 from app.jobs import worker
 from app.schemas import ForecastResponse, JobCreated
@@ -24,7 +24,7 @@ async def forecast_csv(
 ):
     try:
         get_engine()
-    except BundleNotFound as e:
+    except (BundleNotFound, BundleContractError) as e:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e))
 
     raw = await file.read()

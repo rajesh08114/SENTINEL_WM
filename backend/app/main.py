@@ -13,13 +13,14 @@ from app.settings import settings          # noqa: F401  (sets SENTINEL_WM_MODEL
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.jobs import store, worker
-    from app.inference.loader import BundleNotFound, get_engine
+    from app.inference.loader import (BundleContractError, BundleNotFound,
+                                      get_engine)
 
     store.init_db()
     try:
-        get_engine()                        # load + warm the world model
+        get_engine()                        # load + warm the engine from the bundle
         print("[startup] model bundle loaded")
-    except BundleNotFound as e:
+    except (BundleNotFound, BundleContractError) as e:
         print(f"[startup] WARNING - {e}")   # /health reports 'degraded' until a bundle appears
     yield
     worker.shutdown()

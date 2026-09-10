@@ -1,15 +1,14 @@
 """Test fixtures.
 
-`tiny_bundle` builds a throwaway model bundle from RANDOM weights so the whole
-CSV / streaming plumbing (windowing -> scaler -> simulate_anchor -> ATT&CK ->
-explain -> JSON) is exercised without a 10-minute training run. The forecast
-*numbers* are meaningless; the *shapes and contract* are what these tests check.
+`tiny_bundle` builds a throwaway model bundle from RANDOM weights (world model +
+tcn/lstm/gru members) so the whole CSV / streaming plumbing is exercised without
+a training run. Built entirely from `app.sentinel_infer` - the backend has no
+dependency on the research tree.
 """
 from __future__ import annotations
 
 import io
 import json
-import os
 import pickle
 
 import numpy as np
@@ -17,64 +16,54 @@ import pandas as pd
 import pytest
 
 
-# ---------------------------------------------------------------------------
 @pytest.fixture(scope="session")
 def tiny_bundle(tmp_path_factory) -> str:
     dst = tmp_path_factory.mktemp("bundle")
     import torch
     from sklearn.preprocessing import RobustScaler
 
-    from sentinel_wm import config as C
-    from sentinel_wm.models import build_model
-    from sentinel_wm.state_windows import STATE_FEATURE_COLS
+    from app.sentinel_infer import schema as C
+    from app.sentinel_infer.net import build_model, build_nn_model
+    from app.sentinel_infer.windows import STATE_FEATURE_COLS
 
     F = len(STATE_FEATURE_COLS)
     C.CONFIG.sequence.horizon = 6
-    model = build_model(F, C.CONFIG)
-    torch.save(
-        dict(state_dict=model.state_dict(),
-             config={"n_features": F, "model": {"encoder": C.CONFIG.model.encoder}},
-             sequence={"L": 12, "K": 6},
-             alert_threshold=0.5, snapshots=[], self_ensemble=False),
+    wm = build_model(F, C.CONFIG)
+    torch.save(dict(
+        state_dict=wm.state_dict(),
+        config={"n_features": F, "model": {"encoder": C.CONFIG.model.encoder}},
+        sequence={"L": 12, "K": 6},
+        alert_threshold=0.5, snapshots=[], self_ensemble=False),
         dst / "world_model.pt")
 
     sc = RobustScaler().fit(np.random.default_rng(0).normal(size=(512, F)))
     with open(dst / "state_scaler.pkl", "wb") as fh:
         pickle.dump({"scaler": sc, "feature_names": list(STATE_FEATURE_COLS)}, fh)
 
-    # random-weight blend members so the SENTINEL-WM (system) path is exercised
-    from sentinel_wm.nn_zoo import build_nn_model
     nn_dir = dst / "models" / "nn"
     nn_dir.mkdir(parents=True, exist_ok=True)
     for kind in ("tcn", "lstm", "gru"):
         mm = build_nn_model(kind, F, 12, C.CONFIG)
         torch.save(dict(state_dict=mm.state_dict(), kind=kind, family="nn",
-                        n_features=F, sequence={"L": 12, "K": 6},
-                        alert_threshold=0.5, feature_names=list(STATE_FEATURE_COLS)),
+                        n_features=F, sequence={"L": 12, "K": 6}),
                    nn_dir / f"{kind}.pt")
-        (nn_dir / f"{kind}.meta.json").write_text(json.dumps(
-            {"name": kind, "kind": kind, "family": "nn", "threshold": 0.5,
-             "params": sum(p.numel() for p in mm.parameters()), "metrics": {}}))
 
-    os.environ["SENTINEL_WM_MODEL_DIR"] = str(dst)
-    from sentinel_wm import registry
-    registry.build_registry(verbose=False, base_dir=str(dst))
-
-    (dst / "bundle.json").write_text(json.dumps(
-        {"created": "test", "git_sha": "test", "L": 12, "K": 6, "n_features": F,
-         "window_seconds": 10, "encoder": C.CONFIG.model.encoder,
-         "alert_threshold": 0.5, "progression_states": list(C.PROGRESSION_STATES),
-         "snapshots": 0, "classical_models": 0, "registry": ["SENTINEL-WM"],
-         "system_members": ["tcn", "lstm", "gru"], "system_blend_weight": 0.5,
-         "system_threshold": 0.5}))
+    (dst / "bundle.json").write_text(json.dumps({
+        "created": "test", "git_sha": "test", "L": 12, "K": 6, "n_features": F,
+        "window_seconds": 10, "encoder": C.CONFIG.model.encoder,
+        "progression_states": list(C.PROGRESSION_STATES),
+        "feature_names": list(STATE_FEATURE_COLS),
+        "system_members": ["tcn", "lstm", "gru"],
+        "system_blend_weight": 0.5, "system_threshold": 0.5,
+        "system_metrics": {"pr_auc": 0.99, "f1_best": 0.97},
+    }))
     return str(dst)
 
 
 @pytest.fixture()
 def client(tiny_bundle, monkeypatch):
     monkeypatch.setenv("SENTINEL_WM_MODEL_DIR", tiny_bundle)
-    monkeypatch.setenv("SENTINEL_MC_SAMPLES", "8")          # fast
-    # rebuild the cached singletons against the test env
+    monkeypatch.setenv("SENTINEL_MC_SAMPLES", "8")
     import app.settings as S
     S.get_settings.cache_clear()
     S.settings = S.get_settings()
@@ -88,10 +77,8 @@ def client(tiny_bundle, monkeypatch):
 
 # ---------------------------------------------------------------------------
 def _synth_flows(n_benign=260, burst=140, t0=1_700_000_000.0) -> pd.DataFrame:
-    """steady benign traffic for ~300 s + a SYN scan burst from ~100-220 s."""
     rng = np.random.default_rng(7)
     rows = []
-    # benign: ~1 flow/s, mixed ports, balanced fwd/bwd
     for i in range(n_benign):
         t = t0 + i * (300.0 / n_benign) + rng.uniform(0, 0.3)
         fp, bp = int(rng.integers(4, 40)), int(rng.integers(4, 40))
@@ -106,7 +93,6 @@ def _synth_flows(n_benign=260, burst=140, t0=1_700_000_000.0) -> pd.DataFrame:
             **{"Total Length of Fwd Packets": fp * 500.0},
             **{"Total Length of Bwd Packets": bp * 600.0},
             **{"SYN Flag Count": 1}, **{"RST Flag Count": 0}, **{"ACK Flag Count": fp + bp}))
-    # burst: many 1-2 packet SYN flows, one src -> sequential dst ports
     for j in range(burst):
         t = t0 + 100.0 + j * (120.0 / burst) + rng.uniform(0, 0.05)
         rows.append(dict(
@@ -120,8 +106,7 @@ def _synth_flows(n_benign=260, burst=140, t0=1_700_000_000.0) -> pd.DataFrame:
             **{"Total Length of Fwd Packets": 40.0},
             **{"Total Length of Bwd Packets": 0.0},
             **{"SYN Flag Count": 1}, **{"RST Flag Count": 1}, **{"ACK Flag Count": 0}))
-    df = pd.DataFrame(rows).sort_values("flow_start_epoch").reset_index(drop=True)
-    return df
+    return pd.DataFrame(rows).sort_values("flow_start_epoch").reset_index(drop=True)
 
 
 @pytest.fixture(scope="session")

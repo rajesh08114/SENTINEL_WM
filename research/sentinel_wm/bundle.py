@@ -108,6 +108,7 @@ def assemble_bundle(dst: Optional[str] = None, verbose: bool = True) -> dict:
     reg = _reg.build_registry(verbose=False, base_dir=dst)
 
     # ---- 5. manifest -------------------------------------------------
+    from sentinel_wm.state_windows import STATE_FEATURE_COLS
     manifest = dict(
         created=time.strftime("%Y-%m-%dT%H:%M:%S"),
         git_sha=_git_sha(),
@@ -117,6 +118,9 @@ def assemble_bundle(dst: Optional[str] = None, verbose: bool = True) -> dict:
         encoder=ck.get("config", {}).get("model", {}).get("encoder", "gru"),
         alert_threshold=ck.get("alert_threshold"),
         progression_states=list(C.PROGRESSION_STATES),
+        # the exact ordered feature schema the models were trained on - the
+        # backend's vendored sentinel_infer checks this matches its own copy.
+        feature_names=list(STATE_FEATURE_COLS),
         snapshots=len(ck["snapshots"]),
         classical_models=n_models,
         registry=sorted(reg.keys()),

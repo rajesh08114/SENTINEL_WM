@@ -1,12 +1,7 @@
-"""Backend configuration.
-
-This module has NO `sentinel_wm` import and MUST be imported before anything that
-touches `sentinel_wm.config` - it exports `SENTINEL_WM_MODEL_DIR` into the
-environment so the research package loads models from the bundle, not the tree.
-"""
+"""Backend configuration. No dependency on the research tree - the model bundle
+directory is the only interface (see app.sentinel_infer)."""
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,12 +17,12 @@ class Settings(BaseSettings):
         protected_namespaces=(),
     )
 
-    # accepts SENTINEL_WM_MODEL_DIR (canonical) or SENTINEL_MODEL_DIR
+    # path to the model bundle (`sentinel-wm bundle`). Accepts SENTINEL_WM_MODEL_DIR.
     bundle_dir: Path = Field(default=_HERE.parent / "models",
                              validation_alias="SENTINEL_WM_MODEL_DIR")
     device: str = "cpu"
-    # "auto" (system blend if the bundle has the member models, else world_model),
-    # "system" (force blend), "world_model" (world model only)
+    # "auto" (system blend if the bundle has the members, else world_model) |
+    # "system" (force blend) | "world_model" (world model only)
     serve_mode: str = "auto"
     max_sync_flows: int = 20_000
     mc_samples: int = 50
@@ -47,8 +42,6 @@ def get_settings() -> Settings:
     s.bundle_dir = s.bundle_dir.resolve()
     s.job_dir = s.job_dir.resolve()
     s.job_dir.mkdir(parents=True, exist_ok=True)
-    # hand the bundle path to sentinel_wm.config BEFORE it is imported
-    os.environ["SENTINEL_WM_MODEL_DIR"] = str(s.bundle_dir)
     return s
 
 

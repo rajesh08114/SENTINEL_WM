@@ -10,9 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 
-# NOTE: the `sentinel_wm` package (../research) must be installed first:
-#   pip install -e ../research
-#   pip install -e ./backend        (or: pip install -r requirements.txt)
+# Self-contained: the inference code is vendored in app/sentinel_infer/ - the
+# backend does NOT depend on the research package. The only external interface is
+# a model bundle directory (SENTINEL_WM_MODEL_DIR).
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
@@ -21,6 +21,9 @@ dependencies = [
     "pydantic-settings>=2.2",
     "pandas>=1.5",
     "numpy>=1.23,<2.0",
+    "pyarrow>=10.0",
+    "scikit-learn>=1.0",        # unpickle the RobustScaler in the bundle
+    "torch>=2.1",               # for a CPU-only image: install the CPU wheel first
 ]
 
 [project.optional-dependencies]

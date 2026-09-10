@@ -19,7 +19,7 @@ attacker progression and support proactive cyber defence using World Models."*
 | folder | what it is |
 |---|---|
 | **[`research/`](research/)** | the ML workspace — the `sentinel_wm` package (preprocessing → state windows → sequences → model zoo → world model → benchmark → explainability → forward simulation), the `extraction/` PCAP tooling, and the phase notebooks. CLI + JSON artifacts. |
-| **[`backend/`](backend/)** | a FastAPI service that loads the trained models and scores incoming traffic (flow CSV upload, PCAP upload, or a live telemetry WebSocket) → per-horizon attack-probability forecasts **with explanations and ATT&CK phase mapping**. |
+| **[`backend/`](backend/)** | a **self-contained** FastAPI service (inference code vendored in `app/sentinel_infer/`, no `research/` import) that loads a **model bundle** and scores incoming traffic (flow CSV upload, PCAP upload, or a live telemetry WebSocket) → per-horizon forecasts **with explanations and ATT&CK phase mapping**. |
 | **[`frontend/`](frontend/)** | a Next.js UI for uploads, live monitoring, and the forecast / explanation / ATT&CK views. |
 | `models/` | the portable model **bundle** the backend loads (`sentinel-wm bundle`); regenerable, git-ignored. |
 | `data/` · `artifacts/` · `runs/` | raw CSVs · pipeline working files · generated benchmark study. All git-ignored. |
@@ -62,21 +62,25 @@ docker compose up --build          # backend (+ frontend); mounts ./models as a 
 ## How the pieces connect
 
 ```
-              research/                         models/ (bundle)          backend/
-  raw CSV/PCAP ──► sentinel_wm pipeline ──► world_model.pt + scaler ──► FastAPI
-                   train + benchmark          + registry.json           simulate_anchor()
-                                                                            │
-   user upload / telemetry ──────────────────────────────────────────►  forecast JSON
-        (CSV · PCAP · WS stream)                                        per-horizon P(attack)+CI
-                                                                        progression state
-                                                                        ATT&CK phase + confidence
-                                                                        driving features + saliency
-                                                                            │
-                                                                        frontend/ (Next.js)
+       research/                       models/  (the bundle = the ONLY interface)
+  raw CSV/PCAP ─► sentinel_wm ─► sentinel-wm bundle ─► world_model.pt · state_scaler.pkl
+                 train+benchmark                        models/nn/{tcn,lstm,gru}.pt
+                                                        bundle.json (feature_names, blend_w)
+                                                                  │  (mounted volume)
+       backend/  (self-contained; app/sentinel_infer/ is vendored, no research import)
+   CSV · PCAP · WS stream ─► clean → state windows → scaler → simulate_anchor + blend
+                                                                  │
+                          forecast JSON:  per-horizon P(attack)+CI · detection_prob
+                                          progression state · ATT&CK phase+confidence
+                                          driving features + temporal saliency
+                                                                  │
+                                                          frontend/  (Next.js)
 ```
 
-The backend depends only on the `models/` bundle — retraining does not require
-rebuilding the backend image, just re-running `sentinel-wm bundle`.
+The three folders are **decoupled**: `research/` produces a bundle; `backend/`
+consumes only the bundle (its inference code is vendored in
+`app/sentinel_infer/`); `frontend/` talks only HTTP/WS to `backend/`. Retraining
+= re-run `sentinel-wm bundle`; no backend rebuild.
 
 ---
 

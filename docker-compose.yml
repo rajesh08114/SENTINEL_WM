@@ -5,9 +5,7 @@ name: sentinel-wm
 
 services:
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    build: ./backend          # self-contained; no research tree in the image
     image: sentinel-wm-backend
     ports:
       - "8000:8000"

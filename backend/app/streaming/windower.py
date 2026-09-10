@@ -15,7 +15,8 @@ from typing import Optional
 import pandas as pd
 
 from app.inference.loader import get_engine
-from app.inference.pipeline import (BadUpload, forecast, normalise_upload)
+from app.inference.pipeline import forecast
+from app.sentinel_infer.forecast import BadUpload, normalise_upload
 
 
 class StreamingWindower:
