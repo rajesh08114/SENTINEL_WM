@@ -24,7 +24,8 @@ attacker progression and support proactive cyber defence using World Models."*
 | **[`capture-agent/`](capture-agent/)** | a **host** process (Npcap + Administrator) that enumerates local NICs Wireshark-style, sniffs a chosen interface (optional IP/CIDR filter), reassembles packets into flow rows, and streams them to `backend/` over `WS /agent` for **live network forecasting**. Not a container service. |
 | `backend/models/` | the portable model **bundle** (`sentinel-wm bundle`), shipped *inside* the backend so it deploys as one unit; regenerable, git-ignored. |
 | `data/` · `artifacts/` · `runs/` | raw CSVs · pipeline working files · generated benchmark study. All git-ignored. |
-| `docs/` | [`guide.md`](docs/guide.md) (usage manual), [`system_architecture.md`](docs/system_architecture.md) (**SENTINEL-WM (system)** — every layer, param, forward/backward pass), [`technical_reference.md`](docs/technical_reference.md) (loss / rollout / ATT&CK / leakage-control detail), [`proposal.md`](docs/proposal.md), [`plan_validation.md`](docs/plan_validation.md). |
+| `docs/` | [`USAGE.md`](docs/USAGE.md) (**run / test / demo the app** — start here for the application layer), [`guide.md`](docs/guide.md) (research CLI manual), [`system_architecture.md`](docs/system_architecture.md) (**SENTINEL-WM (system)** — every layer, param, forward/backward pass), [`technical_reference.md`](docs/technical_reference.md) (loss / rollout / ATT&CK / leakage-control / live-serving detail), [`proposal.md`](docs/proposal.md), [`plan_validation.md`](docs/plan_validation.md). |
+| `demo/` | small **real** CIC-IDS-2017 slices for the CSV-upload demo (`demo_benign.csv`, `demo_dos_onset.csv`) + `make_demo_csv.py` to rebuild them. |
 
 ---
 
