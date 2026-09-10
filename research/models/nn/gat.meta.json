@@ -1,0 +1,14 @@
+{
+  "name": "gat",
+  "family": "graph",
+  "kind": "gat",
+  "params": 246820,
+  "threshold": 0.39,
+  "epochs_run": 50,
+  "metrics": {
+    "f1": 0.6101694915254237,
+    "auroc": 0.9732088601391747,
+    "mean_lead_time_s": 0.0,
+    "progression_acc": 0.9686104068574188
+  }
+}

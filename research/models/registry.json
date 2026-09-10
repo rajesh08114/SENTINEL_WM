@@ -1,0 +1,346 @@
+{
+  "extra_trees": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "window",
+    "path": "research\\models\\classical\\extra_trees.pkl",
+    "input": {
+      "tensor": "window",
+      "K": 6
+    },
+    "threshold": 0.45,
+    "metrics": {
+      "f1": 0.11023622047244096,
+      "auroc": 0.36826913652847204,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "gaussian_nb": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "window",
+    "path": "research\\models\\classical\\gaussian_nb.pkl",
+    "input": {
+      "tensor": "window",
+      "K": 6
+    },
+    "threshold": 0.5,
+    "metrics": {
+      "f1": 0.1365461847389558,
+      "auroc": 0.4989414877977066,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "hist_gradient_boosting": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "window",
+    "path": "research\\models\\classical\\hist_gradient_boosting.pkl",
+    "input": {
+      "tensor": "window",
+      "K": 6
+    },
+    "threshold": 0.5,
+    "metrics": {
+      "f1": 0.0390625,
+      "auroc": 0.17176075664020385,
+      "mean_lead_time_s": 10.0
+    }
+  },
+  "hist_gradient_boosting__seq": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "sequence",
+    "path": "research\\models\\classical\\hist_gradient_boosting__seq.pkl",
+    "input": {
+      "tensor": "sequence_flat",
+      "K": 6
+    },
+    "threshold": 0.5,
+    "metrics": {
+      "f1": 0.04530973451327433,
+      "auroc": 0.17628148583749875,
+      "mean_lead_time_s": 10.0
+    }
+  },
+  "knn": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "window",
+    "path": "research\\models\\classical\\knn.pkl",
+    "input": {
+      "tensor": "window",
+      "K": 6
+    },
+    "threshold": 0.12,
+    "metrics": {
+      "f1": 0.24215246636771304,
+      "auroc": 0.7491522101342742,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "linear_svc": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "window",
+    "path": "research\\models\\classical\\linear_svc.pkl",
+    "input": {
+      "tensor": "window",
+      "K": 6
+    },
+    "threshold": 0.65,
+    "metrics": {
+      "f1": 0.22222222222222224,
+      "auroc": 0.8296873468587671,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "logistic_regression": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "window",
+    "path": "research\\models\\classical\\logistic_regression.pkl",
+    "input": {
+      "tensor": "window",
+      "K": 6
+    },
+    "threshold": 0.85,
+    "metrics": {
+      "f1": 0.21301775147928992,
+      "auroc": 0.8234342840341077,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "logistic_regression__seq": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "sequence",
+    "path": "research\\models\\classical\\logistic_regression__seq.pkl",
+    "input": {
+      "tensor": "sequence_flat",
+      "K": 6
+    },
+    "threshold": 0.5,
+    "metrics": {
+      "f1": 0.4378698224852071,
+      "auroc": 0.9608105459178673,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "mlp_sklearn": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "window",
+    "path": "research\\models\\classical\\mlp_sklearn.pkl",
+    "input": {
+      "tensor": "window",
+      "K": 6
+    },
+    "threshold": 0.29000000000000004,
+    "metrics": {
+      "f1": 0.22712933753943218,
+      "auroc": 0.85078408311281,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "mlp_sklearn__seq": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "sequence",
+    "path": "research\\models\\classical\\mlp_sklearn__seq.pkl",
+    "input": {
+      "tensor": "sequence_flat",
+      "K": 6
+    },
+    "threshold": 0.39,
+    "metrics": {
+      "f1": 0.6086956521739131,
+      "auroc": 0.9243653827305695,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "random_forest": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "window",
+    "path": "research\\models\\classical\\random_forest.pkl",
+    "input": {
+      "tensor": "window",
+      "K": 6
+    },
+    "threshold": 0.6,
+    "metrics": {
+      "f1": 0.17073170731707318,
+      "auroc": 0.45469959815740474,
+      "mean_lead_time_s": 10.0
+    }
+  },
+  "random_forest__seq": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "sequence",
+    "path": "research\\models\\classical\\random_forest__seq.pkl",
+    "input": {
+      "tensor": "sequence_flat",
+      "K": 6
+    },
+    "threshold": 0.86,
+    "metrics": {
+      "f1": 0.32941176470588235,
+      "auroc": 0.3972949132608056,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "xgboost": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "window",
+    "path": "research\\models\\classical\\xgboost.pkl",
+    "input": {
+      "tensor": "window",
+      "K": 6
+    },
+    "threshold": 0.5,
+    "metrics": {
+      "f1": 0.030670470756062766,
+      "auroc": 0.22601685778692543,
+      "mean_lead_time_s": 10.0
+    }
+  },
+  "xgboost__seq": {
+    "family": "classical",
+    "framework": "sklearn",
+    "kind": "sequence",
+    "path": "research\\models\\classical\\xgboost__seq.pkl",
+    "input": {
+      "tensor": "sequence_flat",
+      "K": 6
+    },
+    "threshold": 0.97,
+    "metrics": {
+      "f1": 0.45238095238095233,
+      "auroc": 0.8113839066941095,
+      "mean_lead_time_s": 0.0
+    }
+  },
+  "gat": {
+    "family": "graph",
+    "framework": "torch",
+    "kind": "gat",
+    "path": "research\\models\\nn\\gat.pt",
+    "input": {
+      "tensor": "graph_sequence"
+    },
+    "threshold": 0.39,
+    "params": 246820,
+    "metrics": {
+      "f1": 0.6101694915254237,
+      "auroc": 0.9732088601391747,
+      "mean_lead_time_s": 0.0,
+      "progression_acc": 0.9686104068574188
+    }
+  },
+  "gru": {
+    "family": "nn",
+    "framework": "torch",
+    "kind": "gru",
+    "path": "research\\models\\nn\\gru.pt",
+    "input": {
+      "tensor": "sequence"
+    },
+    "threshold": 0.03,
+    "params": 191140,
+    "metrics": {
+      "f1": 0.7638190954773869,
+      "auroc": 0.99921591688719,
+      "mean_lead_time_s": 0.0,
+      "progression_acc": 0.9929977061451165
+    }
+  },
+  "lstm": {
+    "family": "nn",
+    "framework": "torch",
+    "kind": "lstm",
+    "path": "research\\models\\nn\\lstm.pt",
+    "input": {
+      "tensor": "sequence"
+    },
+    "threshold": 0.03,
+    "params": 247716,
+    "metrics": {
+      "f1": 0.7755102040816326,
+      "auroc": 0.999529550132314,
+      "mean_lead_time_s": 0.0,
+      "progression_acc": 0.9908245804660147
+    }
+  },
+  "mlp": {
+    "family": "nn",
+    "framework": "torch",
+    "kind": "mlp",
+    "path": "research\\models\\nn\\mlp.pt",
+    "input": {
+      "tensor": "sequence"
+    },
+    "threshold": 0.48000000000000004,
+    "params": 519460,
+    "metrics": {
+      "f1": 0.7650273224043717,
+      "auroc": 0.9910124473194158,
+      "mean_lead_time_s": 0.0,
+      "progression_acc": 0.986659422914403
+    }
+  },
+  "tcn": {
+    "family": "nn",
+    "framework": "torch",
+    "kind": "tcn",
+    "path": "research\\models\\nn\\tcn.pt",
+    "input": {
+      "tensor": "sequence"
+    },
+    "threshold": 0.05,
+    "params": 172644,
+    "metrics": {
+      "f1": 0.8397790055248618,
+      "auroc": 0.9996618641576007,
+      "mean_lead_time_s": 0.0,
+      "progression_acc": 0.9945671858022456
+    }
+  },
+  "SENTINEL-WM": {
+    "family": "world_model",
+    "framework": "torch",
+    "kind": "gru+STN (self-ensemble, 3 snap)",
+    "path": "artifacts\\world_model.pt",
+    "input": {
+      "tensor": "sequence",
+      "L": 12,
+      "K": 6
+    },
+    "threshold": 0.11,
+    "snapshots": [
+      "artifacts\\world_model_snapshots\\snap_ep060.pt",
+      "artifacts\\world_model_snapshots\\snap_ep090.pt",
+      "artifacts\\world_model_snapshots\\snap_ep120.pt"
+    ],
+    "self_ensemble": true,
+    "metrics": {
+      "f1": 0.5692883895131086,
+      "auroc": 0.9978682740370479
+    }
+  },
+  "SENTINEL-WM-system": {
+    "family": "system",
+    "framework": "composite",
+    "kind": "WM self-ensemble + [xgboost__seq, random_forest__seq, hist_gradient_boosting__seq, gat] (val-tuned blend)",
+    "components": [
+      "SENTINEL-WM",
+      "xgboost__seq",
+      "random_forest__seq",
+      "hist_gradient_boosting__seq",
+      "gat"
+    ],
+    "note": "composed at inference by benchmark._score_world_model / registry.load_system_predictor"
+  }
+}

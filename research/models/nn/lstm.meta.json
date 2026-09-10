@@ -1,0 +1,14 @@
+{
+  "name": "lstm",
+  "family": "nn",
+  "kind": "lstm",
+  "params": 247716,
+  "threshold": 0.03,
+  "epochs_run": 50,
+  "metrics": {
+    "f1": 0.7755102040816326,
+    "auroc": 0.999529550132314,
+    "mean_lead_time_s": 0.0,
+    "progression_acc": 0.9908245804660147
+  }
+}

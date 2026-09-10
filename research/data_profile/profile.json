@@ -1,0 +1,35 @@
+{
+  "n_flows": 2829609,
+  "n_windows": 14644,
+  "n_sequences": 14197,
+  "L": 12,
+  "K": 6,
+  "n_features": 53,
+  "split_summary": [
+    {
+      "split": "train",
+      "windows": 8489,
+      "attack_windows": 764,
+      "attack_frac": 0.09,
+      "days": "Friday,Monday,Thursday,Tuesday,Wednesday",
+      "families": "Bot;DDoS;DoS GoldenEye;DoS Hulk;DoS Slowhttptest;DoS slowloris;FTP-Patator;PortScan;SSH-Patator;Web Attack Brute Force;Web Attack SQL Injection;Web Attack XSS"
+    },
+    {
+      "split": "val",
+      "windows": 2987,
+      "attack_windows": 461,
+      "attack_frac": 0.1543,
+      "days": "Friday,Monday,Thursday,Tuesday,Wednesday",
+      "families": "Bot;DDoS;DoS GoldenEye;DoS Hulk;DoS Slowhttptest;DoS slowloris;FTP-Patator;Heartbleed;Infiltration;PortScan;SSH-Patator;Web Attack Brute Force;Web Attack XSS"
+    },
+    {
+      "split": "test",
+      "windows": 3168,
+      "attack_windows": 352,
+      "attack_frac": 0.1111,
+      "days": "Friday,Monday,Thursday,Tuesday,Wednesday",
+      "families": "Bot;DDoS;DoS Hulk;DoS Slowhttptest;DoS slowloris;FTP-Patator;Heartbleed;Infiltration;PortScan;SSH-Patator;Web Attack Brute Force;Web Attack XSS"
+    }
+  ],
+  "flow_augment": false
+}

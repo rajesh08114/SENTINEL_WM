@@ -1,0 +1,135 @@
+{
+  "timestamp": "2026-09-10T09:15:48",
+  "raw_csvs": [
+    "unified_AllDays_labeled.csv"
+  ],
+  "window": {
+    "window_seconds": 10,
+    "stride_seconds": 10,
+    "pre_attack_span": 3,
+    "episode_gap_windows": 2,
+    "min_attack_flows": 2,
+    "min_attack_ratio": 0.05,
+    "label_smooth_windows": 1,
+    "add_derived_features": true,
+    "flow_augment": false,
+    "flow_aug_families": [],
+    "flow_aug_max_variants": 3,
+    "flow_aug_jitter_pct": 0.15,
+    "flow_aug_dropout_frac": 0.2,
+    "flow_aug_port_shuffle": true,
+    "flow_aug_transplant": true,
+    "flow_aug_transplant_max_windows": 120,
+    "flow_aug_cap_frac": 1.0,
+    "flow_aug_seed": 1337
+  },
+  "sequence": {
+    "history": 12,
+    "horizon": 6,
+    "purge_boundary_sequences": true
+  },
+  "split": {
+    "mode": "auto",
+    "stratified_fracs": [
+      0.6,
+      0.2,
+      0.2
+    ],
+    "stratified_purge_windows": 0,
+    "stratified_benign": "contiguous",
+    "stratified_episode_rotation": [
+      "train",
+      "val",
+      "train",
+      "test"
+    ],
+    "stratified_long_episode_windows": 54,
+    "block_minutes": 5,
+    "block_assignment": [
+      "train",
+      "train",
+      "train",
+      "val",
+      "test"
+    ],
+    "episode_chrono_benign_frac": 0.25,
+    "chrono_fracs": [
+      0.6,
+      0.2,
+      0.2
+    ],
+    "family_train": [
+      "DoS Hulk",
+      "DoS slowloris"
+    ],
+    "family_val": [
+      "DoS Slowhttptest"
+    ],
+    "family_test": [
+      "DoS GoldenEye",
+      "Heartbleed"
+    ]
+  },
+  "model": {
+    "encoder": "gru",
+    "d_model": 160,
+    "n_heads": 4,
+    "n_layers": 3,
+    "ff_mult": 4,
+    "dropout": 0.15,
+    "stn_hidden": 160,
+    "w_next_state": 0.1,
+    "w_kl": 1e-05,
+    "w_attack": 3.0,
+    "w_progression": 0.5,
+    "focal_gamma": 1.0
+  },
+  "train": {
+    "epochs": 150,
+    "batch_size": 256,
+    "lr": 0.00025,
+    "weight_decay": 2e-05,
+    "grad_clip": 1.0,
+    "seed": 1337,
+    "early_stop_patience": 40,
+    "warm_restart_period": 30,
+    "balanced_sampler_min_pos": 0.3,
+    "augment": true,
+    "two_stage": true,
+    "two_stage_frac": 0.2,
+    "two_stage_freeze_encoder": false,
+    "ssl_pretrain": true,
+    "ssl_epochs": 40,
+    "distill": true,
+    "distill_teachers": [
+      "xgboost__seq",
+      "random_forest__seq",
+      "hist_gradient_boosting__seq"
+    ],
+    "w_distill": 1.0,
+    "snapshot_ensemble": true,
+    "self_ensemble": true,
+    "system_blend_teachers": true,
+    "system_members": [
+      "xgboost__seq",
+      "random_forest__seq",
+      "hist_gradient_boosting__seq",
+      "gat"
+    ],
+    "device": "auto",
+    "mc_samples": 50,
+    "alert_threshold": 0.7,
+    "target_fpr": 0.05
+  },
+  "args": {
+    "step": "all",
+    "quick": false,
+    "device": "cuda",
+    "wm_epochs": 40,
+    "nn_epochs": 50,
+    "gat_epochs": 50,
+    "skip": [],
+    "split": null,
+    "outdir": "research"
+  }
+}

@@ -1,0 +1,4 @@
+split,windows,attack_windows,attack_frac,days,families
+train,8489,764,0.09,"Friday,Monday,Thursday,Tuesday,Wednesday",Bot;DDoS;DoS GoldenEye;DoS Hulk;DoS Slowhttptest;DoS slowloris;FTP-Patator;PortScan;SSH-Patator;Web Attack Brute Force;Web Attack SQL Injection;Web Attack XSS
+val,2987,461,0.1543,"Friday,Monday,Thursday,Tuesday,Wednesday",Bot;DDoS;DoS GoldenEye;DoS Hulk;DoS Slowhttptest;DoS slowloris;FTP-Patator;Heartbleed;Infiltration;PortScan;SSH-Patator;Web Attack Brute Force;Web Attack XSS
+test,3168,352,0.1111,"Friday,Monday,Thursday,Tuesday,Wednesday",Bot;DDoS;DoS Hulk;DoS Slowhttptest;DoS slowloris;FTP-Patator;Heartbleed;Infiltration;PortScan;SSH-Patator;Web Attack Brute Force;Web Attack XSS

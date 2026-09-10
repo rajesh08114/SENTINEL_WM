@@ -77,18 +77,49 @@ def cmd_explain(a):
     explain.run_all(a.device or "cpu")
 
 
+def cmd_nn(a):
+    from sentinel_wm.nn_common import run_nn_zoo
+    run_nn_zoo(kinds=a.kinds, epochs=a.epochs or 50, device=a.device, verbose=True)
+
+
+def cmd_gat(a):
+    from sentinel_wm.gat import run_gat
+    run_gat(epochs=a.epochs or 50, device=a.device, verbose=True)
+
+
+def cmd_graphwindows(a):
+    from sentinel_wm.graph_windows import build_graph_windows
+    build_graph_windows(verbose=True)
+
+
+def cmd_benchmark(a):
+    from sentinel_wm import benchmark
+    from sentinel_wm.registry import build_registry
+    benchmark.run_benchmark(device=a.device, verbose=True)
+    build_registry(verbose=True)
+
+
 def cmd_evaluate(a):
-    from sentinel_wm import evaluate
-    evaluate.benchmark(verbose=True)
+    cmd_benchmark(a)
+
+
+def cmd_research(a):
+    from sentinel_wm import research
+    ns = argparse.Namespace(step="all", quick=a.quick, device=a.device,
+                            wm_epochs=40, nn_epochs=50, gat_epochs=50, skip=a.skip)
+    research.run_all(ns)
 
 
 def cmd_all(a):
     for fn in (cmd_preprocess, cmd_windows, cmd_sequences, cmd_baseline):
         _p(fn.__name__); fn(a)
     _p("train"); cmd_train(a)
+    _p("nn zoo"); cmd_nn(a)
+    _p("graph windows"); cmd_graphwindows(a)
+    _p("gat"); cmd_gat(a)
     _p("simulate"); cmd_simulate(a)
     _p("explain"); cmd_explain(a)
-    _p("evaluate"); cmd_evaluate(a)
+    _p("benchmark"); cmd_benchmark(a)
 
 
 def cmd_demo(a):
@@ -130,7 +161,21 @@ def build_parser():
     s.add_argument("--explain", action="store_true")
 
     sub.add_parser("explain").set_defaults(func=cmd_explain)
+    sub.add_parser("graphwindows").set_defaults(func=cmd_graphwindows)
     sub.add_parser("evaluate").set_defaults(func=cmd_evaluate)
+    sub.add_parser("benchmark").set_defaults(func=cmd_benchmark)
+
+    nn = sub.add_parser("nn"); nn.set_defaults(func=cmd_nn)
+    nn.add_argument("--epochs", type=int, default=None)
+    nn.add_argument("--kinds", nargs="*", default=None,
+                    help="mlp lstm gru tcn (default: all)")
+
+    g = sub.add_parser("gat"); g.set_defaults(func=cmd_gat)
+    g.add_argument("--epochs", type=int, default=None)
+
+    rs = sub.add_parser("research"); rs.set_defaults(func=cmd_research)
+    rs.add_argument("--quick", action="store_true")
+    rs.add_argument("--skip", nargs="*", default=[])
 
     al = sub.add_parser("all"); al.set_defaults(func=cmd_all)
     al.add_argument("--epochs", type=int, default=None)
@@ -138,6 +183,7 @@ def build_parser():
     al.add_argument("--lr", type=float, default=None)
     al.add_argument("--split", default="test")
     al.add_argument("--limit", type=int, default=None)
+    al.add_argument("--kinds", nargs="*", default=None)
     al.add_argument("--explain", action="store_true", default=True)
 
     d = sub.add_parser("demo"); d.set_defaults(func=cmd_demo)
@@ -149,9 +195,11 @@ def build_parser():
 def main():
     args = build_parser().parse_args()
     # fill attributes other commands expect
-    for attr in ("epochs", "batch_size", "lr", "split", "limit", "explain", "csv"):
+    for attr in ("epochs", "batch_size", "lr", "split", "limit", "explain",
+                 "csv", "kinds", "quick", "skip"):
         if not hasattr(args, attr):
-            setattr(args, attr, None if attr != "explain" else False)
+            setattr(args, attr, False if attr in ("explain", "quick") else
+                    ([] if attr == "skip" else None))
     args.func(args)
 
 

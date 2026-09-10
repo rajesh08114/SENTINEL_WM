@@ -152,6 +152,32 @@ def _agg_windows(fw: pd.DataFrame, w: C.WindowConfig) -> pd.DataFrame:
     out["tcp_ratio"] = g["Protocol"].apply(lambda s: (s == 6).mean())
     out["udp_ratio"] = g["Protocol"].apply(lambda s: (s == 17).mean())
 
+    # ---- distribution entropy (dispersion of the window's traffic) ---------
+    def _shannon(series_vals):
+        v = np.asarray(series_vals, float)
+        v = v[v > 0]
+        if v.size == 0:
+            return 0.0
+        p = v / v.sum()
+        return float(-(p * np.log2(p)).sum())
+
+    out["dstport_entropy"] = gp["Destination Port"].apply(
+        lambda s: _shannon(s.value_counts().values))
+    out["dstip_entropy"] = gp["Destination IP"].apply(
+        lambda s: _shannon(s.value_counts().values))
+    out["srcip_entropy"] = gp["Source IP"].apply(
+        lambda s: _shannon(s.value_counts().values))
+    out["flowsize_entropy"] = g.apply(lambda d: _shannon(np.histogram(
+        np.log1p(d["Total Length of Fwd Packets"].to_numpy(float)
+                 + d["Total Length of Bwd Packets"].to_numpy(float)),
+        bins=16)[0]))
+
+    # ---- provenance: 1 if the window contains any flow-augmented flow --------
+    if "is_synthetic" in fw.columns:
+        out["is_synthetic"] = g["is_synthetic"].max().astype(np.int8)
+    else:
+        out["is_synthetic"] = np.int8(0)
+
     # ---- labels (not model input) ----------------------------------------- -
     out["attack_flows"] = g["is_attack"].sum()
     out["attack_ratio"] = out["attack_flows"] / out["flow_count"]
@@ -170,8 +196,23 @@ def _agg_windows(fw: pd.DataFrame, w: C.WindowConfig) -> pd.DataFrame:
 # -----------------------------------------------------------------------------
 def _derive_progression(sw: pd.DataFrame, w: C.WindowConfig) -> pd.DataFrame:
     sw = sw.sort_values(["day", "window_index"]).reset_index(drop=True)
-    sw["is_attack"] = ((sw["attack_flows"] >= w.min_attack_flows)
-                       & (sw["attack_ratio"] >= w.min_attack_ratio)).astype(np.int8)
+    raw = ((sw["attack_flows"] >= w.min_attack_flows)
+           & (sw["attack_ratio"] >= w.min_attack_ratio)).astype(np.int8)
+    # majority-vote smoothing over a +/- r window (per day) removes 1-window
+    # label flicker from CIC-IDS-2017 timing noise.
+    r = int(getattr(w, "label_smooth_windows", 0))
+    if r > 0:
+        sm = raw.copy().to_numpy()
+        for _day, g in sw.groupby("day", sort=False):
+            v = raw.to_numpy()[g.index]
+            out = v.copy()
+            for i in range(len(v)):
+                lo, hi = max(0, i - r), min(len(v), i + r + 1)
+                out[i] = 1 if v[lo:hi].mean() >= 0.5 else 0
+            sm[g.index] = out
+        sw["is_attack"] = sm.astype(np.int8)
+    else:
+        sw["is_attack"] = raw
     states = np.array(["NORMAL"] * len(sw), dtype=object)
 
     for day, g in sw.groupby("day", sort=False):
@@ -267,7 +308,8 @@ def _attach_attack_stage(sw: pd.DataFrame) -> pd.DataFrame:
 # -----------------------------------------------------------------------------
 # 5. metadata derived from time (safe model inputs) + public API
 # -----------------------------------------------------------------------------
-STATE_FEATURE_COLS: List[str] = [
+# base (always present) window-level features
+_BASE_FEATURE_COLS: List[str] = [
     "flow_count", "packet_count", "byte_count", "packet_rate", "byte_rate",
     "fwd_bwd_ratio",
     "unique_src", "unique_dst", "unique_pairs", "unique_dst_ports",
@@ -282,6 +324,17 @@ STATE_FEATURE_COLS: List[str] = [
     "tcp_ratio", "udp_ratio",
     "time_since_prev_window", "window_index_in_day",
 ]
+# distribution-entropy features (WindowConfig.add_derived_features)
+_ENTROPY_FEATURE_COLS: List[str] = [
+    "dstport_entropy", "dstip_entropy", "srcip_entropy", "flowsize_entropy",
+]
+# first differences S_t - S_{t-1} of the volatile rate / connection features
+_DELTA_SOURCE = ["packet_rate", "byte_rate", "syn_rate", "rst_rate",
+                 "unique_dst", "unique_dst_ports", "fan_out", "failed_conn_ratio"]
+_DELTA_FEATURE_COLS: List[str] = [f"d_{c}" for c in _DELTA_SOURCE]
+
+STATE_FEATURE_COLS: List[str] = (_BASE_FEATURE_COLS + _ENTROPY_FEATURE_COLS
+                                 + _DELTA_FEATURE_COLS)
 
 
 def build_state_windows(flows: Optional[pd.DataFrame] = None,
@@ -289,11 +342,20 @@ def build_state_windows(flows: Optional[pd.DataFrame] = None,
                         out_path: Optional[str] = None,
                         verbose: bool = True) -> pd.DataFrame:
     cfg = cfg or C.CONFIG
-    if flows is None:
-        from sentinel_wm import preprocessing
-        flows = preprocessing.load_clean()
-
     w = cfg.window
+    if flows is None:
+        import os
+        from sentinel_wm import preprocessing
+        aug = C.CLEAN_FLOWS_AUG_PARQUET
+        if getattr(w, "flow_augment", False) and os.path.exists(aug):
+            flows = pd.read_parquet(aug)
+            if verbose:
+                ns = int(flows.get("is_synthetic", pd.Series(0, index=flows.index)).sum())
+                print(f"[windows] flow_augment ON: {len(flows):,} flows "
+                      f"({ns:,} synthetic) <- {os.path.basename(aug)}")
+        else:
+            flows = preprocessing.load_clean()
+
     if verbose:
         print(f"[windows] W={w.window_seconds}s stride={w.stride_seconds}s "
               f"pre_attack_span={w.pre_attack_span}")
@@ -309,7 +371,16 @@ def build_state_windows(flows: Optional[pd.DataFrame] = None,
         sw.groupby("day")["window_start"].diff().fillna(w.window_seconds))
     sw["window_index_in_day"] = sw.groupby("day").cumcount()
 
-    for c in STATE_FEATURE_COLS:
+    # first differences (per day) - "the network is changing", not just its level
+    if getattr(w, "add_derived_features", True):
+        for c in _DELTA_SOURCE:
+            if c in sw.columns:
+                sw[f"d_{c}"] = sw.groupby("day")[c].diff().fillna(0.0)
+        feat_cols = STATE_FEATURE_COLS
+    else:
+        feat_cols = _BASE_FEATURE_COLS
+
+    for c in feat_cols:
         if c not in sw.columns:
             sw[c] = 0.0
         sw[c] = pd.to_numeric(sw[c], errors="coerce").replace(

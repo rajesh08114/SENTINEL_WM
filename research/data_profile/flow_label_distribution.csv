@@ -1,0 +1,16 @@
+,attack_family
+BENIGN,2271975
+DoS Hulk,231073
+PortScan,158927
+DDoS,128027
+DoS GoldenEye,10293
+FTP-Patator,7938
+SSH-Patator,5897
+DoS slowloris,5794
+DoS Slowhttptest,5492
+Bot,1966
+Web Attack Brute Force,1507
+Web Attack XSS,652
+Infiltration,36
+Web Attack SQL Injection,21
+Heartbleed,11

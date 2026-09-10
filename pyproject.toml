@@ -26,8 +26,11 @@ dependencies = [
 [project.optional-dependencies]
 notebooks = ["jupyter>=1.0", "nbconvert>=7.0"]
 explain = ["shap>=0.44"]
+# extra gradient-boosting baselines for the model zoo (graceful-skip if absent)
+benchmark = ["xgboost>=2.0", "lightgbm>=4.0", "shap>=0.44"]
 extraction = ["scapy>=2.5"]      # also needs the `tshark` binary on PATH
 dev = ["pytest>=7.0"]
+# the GAT baseline is dependency-free (implemented from scratch, no torch-geometric)
 
 [project.scripts]
 sentinel-wm = "sentinel_wm.cli:main"

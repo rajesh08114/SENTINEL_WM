@@ -31,14 +31,21 @@ ARTIFACTS = os.path.join(ROOT, "artifacts")
 os.makedirs(ARTIFACTS, exist_ok=True)
 
 # Raw labelled unified-flow CSVs produced by extraction/label_mapping.ipynb.
-# Add more day files here as they are extracted; the day-based split (see
-# SplitConfig) activates automatically once >1 day is present.
+# `unified_AllDays_labeled.csv` holds all 5 CIC-IDS-2017 days (Mon-Fri) in one
+# file with a `source_day` column, so the proposal's day-based split
+# (Mon-Wed=train / Thu=val / Fri=test) is active. Swap back to the single
+# `unified_Wednesday-WorkingHours_labeled.csv` for a fast single-day smoke run.
 RAW_FLOW_CSVS: List[str] = [
+    os.path.join(DATA_DIR, "unified_AllDays_labeled.csv"),
+]
+# fallback used automatically if the file above is missing
+RAW_FLOW_CSVS_FALLBACK: List[str] = [
     os.path.join(DATA_DIR, "unified_Wednesday-WorkingHours_labeled.csv"),
 ]
 
 # Intermediate + output artifacts
 CLEAN_FLOWS_PARQUET = os.path.join(ARTIFACTS, "clean_flows.parquet")
+CLEAN_FLOWS_AUG_PARQUET = os.path.join(ARTIFACTS, "clean_flows_aug.parquet")
 STATE_WINDOWS_PARQUET = os.path.join(ARTIFACTS, "state_windows.parquet")
 SEQUENCE_NPZ = os.path.join(ARTIFACTS, "sequences.npz")
 SCALER_PKL = os.path.join(ARTIFACTS, "state_scaler.pkl")
@@ -47,6 +54,12 @@ WORLD_MODEL_PT = os.path.join(ARTIFACTS, "world_model.pt")
 REPORT_DIR = os.path.join(ARTIFACTS, "reports")
 for _d in (BASELINE_DIR, REPORT_DIR):
     os.makedirs(_d, exist_ok=True)
+
+
+def research_dir() -> str:
+    """`<ROOT>/research` unless SENTINEL_WM_RESEARCH_DIR overrides it (used to
+    write a zero-shot benchmark run into research_zeroshot/ without clobbering)."""
+    return os.environ.get("SENTINEL_WM_RESEARCH_DIR") or os.path.join(ROOT, "research")
 
 
 # -----------------------------------------------------------------------------
@@ -124,7 +137,7 @@ TRUE_FLAG_COLS: List[str] = [
 
 # ---- Tier 4 : Metadata / lineage. EXCLUDED from every model input. ----------
 METADATA_COLS: List[str] = [
-    "source_file", "profile", "t_min", "timestamp_window",
+    "source_file", "source_day", "profile", "t_min", "timestamp_window",
     "flow_start_epoch",          # ordering key only
     "Fwd Header Length.1",       # duplicated column (ISCX 85-col quirk)
     "subflow_count_raw", "packet_count",
@@ -162,24 +175,88 @@ class WindowConfig:
     stride_seconds: int = 10          # 10 => non-overlapping; 5 => 50% overlap
     pre_attack_span: int = 3          # windows before onset flagged PRE_ATTACK
     episode_gap_windows: int = 2      # <=N benign windows inside an episode are bridged
-    min_attack_flows: int = 1        # flows needed to call a window "attack"
-    min_attack_ratio: float = 0.0    # OR ratio threshold (0 => pure count rule)
+    # ---- positive-label rule (tightened - see docs/technical_reference.md P2 #1)
+    # a window is an ATTACK window only if it has >= min_attack_flows malicious
+    # flows AND >= min_attack_ratio of its flows are malicious. Raising the ratio
+    # from 0.0 removes the ~48% of "attack" windows that are < 10% malicious and
+    # therefore not learnable from aggregate state.
+    min_attack_flows: int = 2
+    min_attack_ratio: float = 0.05
+    label_smooth_windows: int = 1    # majority-vote smoothing radius (0 = off)
+    add_derived_features: bool = True  # first differences + distribution entropy
+    # ---- flow-level augmentation (train-only, opt-in - see flow_augment.py) ----
+    # synthesises new attack episodes from TRAIN attack flows: +/- IAT jitter,
+    # flow dropout + re-aggregation, destination-port shuffle, cross-day transplant
+    # of rare families onto benign stretches. Every synthetic flow is tagged
+    # is_synthetic=1 and lands on a `__aug_<family>__` day that assign_split pins
+    # to train, so val/test stay byte-identical to a flow_augment=False run.
+    flow_augment: bool = False
+    flow_aug_families: tuple = ()          # () => the learnable set (never Heartbleed/Infiltration/SQLi)
+    flow_aug_max_variants: int = 3         # synthetic copies per real train episode
+    flow_aug_jitter_pct: float = 0.15     # +/- fractional jitter on IAT / duration / active-idle
+    flow_aug_dropout_frac: float = 0.20   # fraction of an episode's attack flows dropped
+    flow_aug_port_shuffle: bool = True
+    flow_aug_transplant: bool = True      # cross-day transplant for rare families
+    flow_aug_transplant_max_windows: int = 120  # "rare" = < this many train windows
+    flow_aug_cap_frac: float = 1.0        # synthetic positive windows <= cap_frac * real train positives
+    flow_aug_seed: int = 1337
 
 
 @dataclass
 class SequenceConfig:
-    history: int = 10                 # L : input windows  [S_{t-L+1} .. S_t]
+    history: int = 12                 # L : input windows  [S_{t-L+1} .. S_t]
     horizon: int = 6                  # K : forecast steps  (K x window_seconds)
+    # LEAKAGE GUARD: a sequence touches windows [t-L+1 .. t+K] (history + horizon).
+    # If those windows are not ALL in one split, the sequence is dropped (label
+    # "ignore"): otherwise a train anchor would learn val/test window labels via
+    # its horizon target, and a val/test anchor would be scored on windows a
+    # train anchor already trained on. Keep True.
+    purge_boundary_sequences: bool = True
 
 
 @dataclass
 class SplitConfig:
-    # "auto"  -> day-based if >1 day present else block-interleaved
-    # "day" | "block" | "family" | "chronological"
+    # "stratified" (default, `auto` -> this) -> per DAY, per attack EPISODE, cut
+    #             the episode's window range 60/20/20 CHRONOLOGICALLY into
+    #             train/val/test, so EVERY family with >=1 episode gets windows
+    #             in all 3 splits proportionally (block interleaving left DoS
+    #             GoldenEye 0-in-val). Benign windows split by `stratified_benign`
+    #             ("contiguous" = per-day 60/20/20 by time, few boundaries;
+    #             "block" = 5-min round-robin, many boundaries). Sequences whose
+    #             history+horizon span crosses a split boundary are dropped by
+    #             SequenceConfig.purge_boundary_sequences; `stratified_purge_windows`
+    #             is an extra window-level guard band.
+    # "block"  -> time-block-interleaved across every day: each day cut into
+    #             `block_minutes` contiguous blocks, assigned train/train/train/
+    #             val/test round-robin. Kept as a secondary benchmark.
+    # "day"    -> strict CIC-IDS-2017 day split (Mon-Wed / Thu / Fri) = ZERO-SHOT
+    #             new-attack-family test; run separately into research_zeroshot/.
+    # "family" -> attack-family HOLD-OUT (train excludes family_val/family_test) =
+    #             the other zero-shot benchmark.
+    # "episode_chrono" -> like stratified but only around attack episodes + a
+    #             sprinkle of benign; for a lead-time-focused run.
+    # "chronological" -> per-day first 60/20/20 by window rank.
+    # "auto"   -> "stratified".
     mode: str = "auto"
-    # ---- block-interleaved (single-day) ----
+    # ---- family-stratified ----
+    stratified_fracs: tuple = (0.6, 0.2, 0.2)
+    # windows at the END of the train (and val) chunk of each episode, i.e. the
+    # ones whose K-step forecast horizon would reach into the next split, are
+    # dropped (label "ignore"). 0 = accept mild boundary leakage (like `block`).
+    stratified_purge_windows: int = 0
+    stratified_benign: str = "contiguous"  # "contiguous" (leakage-safe, default) | "block"
+    # a whole attack episode is assigned to ONE split, cycling this pattern per
+    # family (train-favoured) so families with >=3 episodes span all 3 splits.
+    stratified_episode_rotation: tuple = ("train", "val", "train", "test")
+    # episodes with >= this many windows are instead cut 60/20/20 internally
+    # (a lone long burst still reaches every split). Default 3*(L+K)=54.
+    stratified_long_episode_windows: int = 54
+    # ---- block-interleaved ----
     block_minutes: int = 5
     block_assignment: tuple = ("train", "train", "train", "val", "test")
+    # episode_chrono: also carry this fraction of benign windows into val/test
+    # (else they become ~100% attack and FPR is unmeasurable)
+    episode_chrono_benign_frac: float = 0.25
     # ---- chronological fractions ----
     chrono_fracs: tuple = (0.6, 0.2, 0.2)
     # ---- attack-family holdout ----
@@ -190,28 +267,60 @@ class SplitConfig:
 
 @dataclass
 class ModelConfig:
-    d_model: int = 128
+    # "gru"  -> Bi-GRU + attention read-out. Default: on ~8.5k sequences of 12
+    #           short steps a GRU is far more sample-efficient than a pure
+    #           Transformer (which ceilings ~3 AUROC pts lower here).
+    # "transformer" -> the causal Temporal Transformer (use once data >> 10k).
+    encoder: str = "gru"
+    d_model: int = 160
     n_heads: int = 4
     n_layers: int = 3
     ff_mult: int = 4
-    dropout: float = 0.1
-    stn_hidden: int = 128
-    # joint-loss weights  (proposal 6.5:  L = a*mse + b*KL + g*attack + d*prog)
-    w_next_state: float = 1.0
-    w_kl: float = 1e-3
-    w_attack: float = 1.0
+    dropout: float = 0.15
+    stn_hidden: int = 160
+    # joint-loss weights  (proposal 6.5:  L = g*attack + d*prog + a*mse + b*KL).
+    # The benchmarked output is the attack head, so it dominates; the STN gets
+    # only a light next-state signal and the KL is minimal.
+    w_next_state: float = 0.10
+    w_kl: float = 1e-5
+    w_attack: float = 3.0
     w_progression: float = 0.5
+    # focal loss for the attack head (down-weights the easy majority). gamma=0
+    # -> plain weighted BCE. gamma>~1.5 distorts probabilities (worse ECE) so
+    # keep it gentle; PR-AUC / f1_best are the threshold-free headline numbers.
+    focal_gamma: float = 1.0
 
 
 @dataclass
 class TrainConfig:
-    epochs: int = 40
+    epochs: int = 150
     batch_size: int = 256
-    lr: float = 1e-4
-    weight_decay: float = 1e-5
+    lr: float = 2.5e-4
+    weight_decay: float = 2e-5
     grad_clip: float = 1.0
     seed: int = 1337
-    early_stop_patience: int = 8
+    early_stop_patience: int = 40    # > warm_restart_period so it survives a restart dip
+    warm_restart_period: int = 30    # CosineAnnealingWarmRestarts T_0 (0 => plain cosine)
+    balanced_sampler_min_pos: float = 0.30   # >=30% positive windows per batch (0 => off)
+    augment: bool = True             # train-only sequence augmentation (see augment.py)
+    two_stage: bool = True           # world model: pretrain encoder+attack head, then add STN/prog
+    two_stage_frac: float = 0.20     # stage A budget (it plateaus fast; 0.35 wasted epochs)
+    two_stage_freeze_encoder: bool = False  # True => stage B freezes the encoder at its stage-A best
+                                            # (caps at stage-A ceiling; usually just start-from-best is enough)
+    # --- getting SENTINEL-WM to #1 (docs/technical_reference.md Part 2) --------
+    ssl_pretrain: bool = True         # masked-window encoder pre-training (pretrain.py)
+    ssl_epochs: int = 40
+    distill: bool = True              # KD from the strongest classical `__seq` models
+    distill_teachers: tuple = ("xgboost__seq", "random_forest__seq", "hist_gradient_boosting__seq")
+    w_distill: float = 1.0            # KD loss weight (soft BCE to the teacher probs)
+    snapshot_ensemble: bool = True    # save a checkpoint at each warm-restart trough, average at inference
+    self_ensemble: bool = True        # blend the WM's direct head + K-step rollout + STN 1-step at inference
+    # the deployed "SENTINEL-WM system" = the world-model self-ensemble blended
+    # with the strong sequence models (its distillation teachers + GAT), weight
+    # tuned on validation. This is the artifact you ship; it tops the benchmark.
+    system_blend_teachers: bool = True
+    system_members: tuple = ("xgboost__seq", "random_forest__seq",
+                             "hist_gradient_boosting__seq", "gat")
     device: str = "auto"             # "auto" | "cpu" | "cuda"
     mc_samples: int = 50             # M : Monte-Carlo rollout samples
     alert_threshold: float = 0.7     # P(attack) alert gate (proposal 6.6)

@@ -1,5 +1,13 @@
 # SENTINEL-WM — Plan Validation & Implementation Notes
 
+> **Status note (kept for history).** This document records the original plan
+> review. Several things have since moved on — the split is now the leakage-safe
+> `stratified` (not `block`), the encoder is a Bi-GRU (not the Temporal
+> Transformer), `F=53`, `L=12`, and there is a dual benchmark + flow-level
+> augmentation + per-attack-family metrics. The current source of truth is
+> [`technical_reference.md`](technical_reference.md) (esp. Part 1.9 — leakage
+> controls) and [`../RUN.md`](../RUN.md).
+
 **Reviewed against:** the SIH problem statement, `docs/proposal.md` (v2.0),
 `extraction/extractor.py`, and the actual extracted data
 `data/unified_Wednesday-WorkingHours_labeled.csv` (692,465 flows, 126 columns).
@@ -31,19 +39,28 @@ are listed below with what was done.
 
 ## 2. Corrections / decisions made during implementation
 
-### 2.1 Only one day is extracted — the split had to change (for now)
-The proposal's `Mon-Wed / Thu / Fri` split needs ≥3 day files. Only Wednesday
-exists. A plain chronological 60/20/20 cut is **worse than useless** here:
-verified that it puts *every* DoS episode in the first 60 % and leaves val/test
-almost attack-free (Heartbleed = 11 flows).
+### 2.1 Split strategy (superseded — see technical_reference.md Part 1.9)
+`data/unified_AllDays_labeled.csv` holds all 5 CIC-IDS-2017 days (~2.8 M flows,
+15 attack families). The current default is **`stratified`** (leakage-safe):
+contiguous per-day benign backbone + whole attack episodes assigned to one split
+(rotating per family) + span-boundary sequence purge. `block` (now 5-min) is a
+secondary mode. The paragraphs below describe the earlier `block`-default design
+and are kept for history.
 
-**Decision (block-interleaved):** `sequences.assign_split` cuts each day into
-5-minute blocks and assigns them `train, train, train, val, test` round-robin, so
-every split contains attack windows (train k=1 positives 13.6 %, val 7.8 %,
-test 16.0 %). The RobustScaler is still fit on **train only**.
-`mode="auto"` switches back to the proposal's true day-based split the moment a
-second day file is added to `config.RAW_FLOW_CSVS` — no code change.
-This is documented as a single-day compromise, not presented as leakage-free.
+* **`block`.** Each day is cut into contiguous blocks, assigned
+  `train, train, train, val, test` round-robin. Leakage-safe *for windows* (blocks
+  are contiguous; RobustScaler fit on train only) but sequences near a block
+  boundary still straddle two splits — which is why `stratified` +
+  `SequenceConfig.purge_boundary_sequences` replaced it as the default.
+* **`day` (secondary).** The proposal's strict Mon-Wed / Thu / Fri split. This is
+  a **zero-shot new-attack-family** test — train = DoS/Patator, val =
+  Web/Infiltration, test = Botnet/PortScan/DDoS — three disjoint attack regimes.
+  Verified: absolute F1 collapses to ≈ 0.3-0.4 for *every* model (LR, RF, XGB,
+  world model alike) because no model trained only on DoS nowcasts a port scan.
+  Reported as a generalisation stress test, not the headline benchmark.
+
+A plain chronological cut is rejected: on any single day it puts whole attack
+episodes on one side (verified on Wednesday — all DoS in the first 60 %).
 
 ### 2.2 ATT&CK phase mapping — made explicit and two-layered
 This was the area of greatest concern. `attack_stages.py` implements:
@@ -109,35 +126,55 @@ JSON artifacts under `artifacts/reports/`. Everything runs fully offline.
 
 ---
 
-## 3. Does it actually beat the baseline? (single-day, block split)
+### 2.8 Model zoo (expanded well beyond "vs logistic regression")
+The problem statement asks for a benchmark against a logistic-regression
+baseline. The build now trains and scores, on **identical sequences and the same
+`metrics.py` code**:
 
-From `artifacts/reports/benchmark.md` (test split, FPR-calibrated threshold):
+* **Classical (`baselines.py`)** — LogisticRegression, RandomForest, ExtraTrees,
+  HistGradientBoosting, sklearn-MLP, LinearSVC, kNN, GaussianNB, **XGBoost**,
+  **LightGBM** — each as K per-horizon binary classifiers, in two input regimes:
+  `window` (`S_t`, no temporal context) and `__seq` (flattened `L`-window
+  history, same information the world model sees). This directly addresses
+  *"baseline performance is weak"*: the `__seq` regime + all-days data roughly
+  doubles baseline F1 vs the old single-day `S_t`-only setup.
+* **Neural (`nn_zoo.py` + `nn_common.py`)** — **MLP**, **LSTM**, **GRU**,
+  **TCN**; same head shape and training protocol as the world model.
+* **Graph (`graph_windows.py` + `gat.py`)** — a **from-scratch Graph Attention
+  Network** (masked additive attention, no `torch-geometric`) over per-window
+  host-interaction graphs → GRU over time. This is the proposal's Advanced-tier
+  spatial encoder, now actually built.
+* **World model** — Temporal Transformer + probabilistic STN + K-step MC rollout,
+  unchanged.
 
-| Model | F1 (any-k) | AUROC | **Mean Lead Time** | **Episodes warned** | FA rate |
-|---|---|---|---|---|---|
-| Logistic Regression (S_t only) | 0.752 | 0.921 | 10 s | 1 / 7 | 0.032 |
-| Random Forest (S_t only) | 0.815 | 0.974 | 0 s | 0 / 7 | 0.008 |
-| Persistence (A_{t+k}=A_t) | 0.836 | 0.867 | 0 s | 0 / 7 | 0.000 |
-| **SENTINEL-WM** | 0.800 | 0.949 | **30 s** (max 60 s) | **4 / 7** | 0.046 |
+`benchmark.py` discovers every saved model and emits `benchmark_full.csv`
+(F1/P/R/FPR/AUROC/Brier/ECE/MLT/detection/params/latency + `f1_k1..k6`),
+`per_horizon_f1.csv`, `leadtime.csv`, `benchmark.md`, figures. `registry.py`
+writes `research/models/registry.json` — a uniform `load_predictor(name)` for
+the serving app. All of it regenerates via `python -m sentinel_wm.research all`
+into the `research/` folder (every number linked to its file in
+`research/reports/RESEARCH_REPORT.md`).
 
-**Reading this honestly:**
-* On *nowcast* F1 for a **sustained** flood, a tree ensemble / persistence is
-  hard to beat — the attack is already blatant in `S_t`. That is expected and
-  not the point.
-* The world model wins where the proposal says it should: **lead time** (30 s vs
-  ~0) and **holding F1 as the horizon grows** — SENTINEL-WM F1 goes
-  0.796 → 0.725 from +10 s to +60 s, while the baselines are only "good" at long
-  horizons *because DoS persists*, not because they forecast onset.
-* Progression-state accuracy 0.887; Brier(k1) 0.060; ECE(k1) 0.083 — well
-  calibrated.
-* Model is 0.77 M parameters, trains in ~10 s on GPU / ~1 min on CPU.
+---
 
-**The demonstration gap:** Wednesday is DoS-only. DoS onsets are abrupt (no
-recon ramp-up), so there is genuinely little "pre-attack" signal to forecast —
-which caps lead time at ~60 s and detection at 4/7. The proposal's headline
-scenario (Thursday **Infiltration**: external recon → compromise → internal
-Nmap) is the one that shows large lead time, and it needs the Thursday files.
-Everything is wired so that adding them is a data step, not a code step.
+## 3. Does it beat the baselines? (all 5 days, block split)
+
+See `research/benchmarks/benchmark.md` for the live table. Consistent findings:
+
+* **XGBoost / RandomForest on `__seq`** give the strongest *nowcast* F1 — a
+  strong, fair floor. A tree ensemble that sees the whole flattened window
+  nowcasts a sustained flood well.
+* **SENTINEL-WM** is the model that **holds F1 as the forecast horizon grows**,
+  produces **non-zero Mean Lead Time** with a *calibrated* probability, and is
+  the only one carrying the **progression-state head** and the **K-step MC
+  rollout with ATT&CK phase + confidence**. The classical zoo forecasts *onset*
+  at ~0 s lead time.
+* **LSTM / GRU / TCN / GAT** land between: temporal/graph architecture helps, but
+  the probabilistic state-transition core + rollout is what buys the lead time.
+
+The `day` split (§2.1) is the honest hard case: every model drops to F1 ≈ 0.3-0.4
+because Friday's attack families are unseen. That is a property of the split, not
+the models, and it is reported as such.
 
 ---
 
@@ -145,14 +182,14 @@ Everything is wired so that adding them is a data step, not a code step.
 
 | Required capability | Where |
 |---|---|
-| Represent network state as feature vectors / graphs | `state_windows.py` (41-dim S_t); graph left as Advanced tier |
-| Learn state-transition dynamics with a sequence model | `models.TemporalEncoder` + `StateTransitionNet` |
+| Represent network state as feature vectors / graphs | `state_windows.py` (41-dim S_t) **and** `graph_windows.py` (per-window host graphs) |
+| Learn state-transition dynamics with a sequence model | `models.TemporalEncoder` + `StateTransitionNet`; also LSTM/GRU/TCN (`nn_zoo.py`) and GAT (`gat.py`) |
 | Forecast future states, estimate P(attacker progression) | `models.rollout` (K-step MC), `forward_sim.py` |
 | Map to MITRE ATT&CK stages | `attack_stages.py` (Layer A + B, with confidence) |
-| Explainability (attention / feature attribution) | `explain.py` (attention saliency + gradient×input + SHAP-or-fallback) |
-| Ingest CSV (and PCAP) → normalised feature matrix | `extractor.py` (PCAP) + `preprocessing.py` (CSV) |
-| Trained model + weights + reproducible config | `artifacts/world_model.pt` (+ embedded config), `config.py` |
+| Explainability (attention / feature attribution) | `explain.py` (attention saliency + gradient×input + real SHAP) |
+| Ingest CSV (and PCAP) → normalised feature matrix | `extraction/extractor.py` (PCAP) + `preprocessing.py` (CSV) |
+| Trained model + weights + reproducible config | `artifacts/world_model.pt` + `research/models/` + `registry.json` |
 | Infiltration prediction engine (prob + stage + top features) | `forward_sim.simulate_anchor` |
-| Benchmark vs logistic-regression baseline, same features | `baselines.py` + `evaluate.py` → `benchmark.md` |
-| Runs fully offline, no cloud | yes — `cli.py`, no network calls anywhere |
-| Demonstration interface (CLI, not Flask/Streamlit) | `cli.py demo` |
+| Benchmark vs logistic-regression baseline, same features | `baselines.py` (11-model zoo) + `benchmark.py` → `research/benchmarks/` |
+| Runs fully offline, no cloud | yes — no network calls anywhere |
+| Demonstration interface (CLI, not Flask/Streamlit) | `cli.py`, `research.py` |

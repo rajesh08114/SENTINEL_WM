@@ -22,6 +22,7 @@
 # =============================================================================
 from __future__ import annotations
 
+import os
 from dataclasses import asdict
 from typing import Dict, Optional
 
@@ -91,6 +92,8 @@ class AttnBlock(nn.Module):
 # temporal encoder
 # -----------------------------------------------------------------------------
 class TemporalEncoder(nn.Module):
+    """Causal Transformer encoder (data-hungry; better once >>10k sequences)."""
+
     def __init__(self, n_features: int, m: C.ModelConfig):
         super().__init__()
         self.in_proj = nn.Linear(n_features, m.d_model)
@@ -108,6 +111,43 @@ class TemporalEncoder(nn.Module):
             h = blk(h, attn_mask=causal)
         h = self.ln(h)
         return dict(seq=h, z=h[:, -1, :], attn=self.blocks[-1].last_attn)
+
+
+class GRUEncoder(nn.Module):
+    """Bi-GRU encoder + one self-attention read-out. Beats the pure Transformer
+    on this dataset (~8.5k sequences, 12 short steps) - RNN recurrence is far
+    more sample-efficient here. `z` = last forward hidden state; `attn` = the
+    read-out attention over time (kept for explainability)."""
+
+    def __init__(self, n_features: int, m: C.ModelConfig):
+        super().__init__()
+        d = m.d_model
+        self.in_proj = nn.Linear(n_features + 1, d)          # +1 = log-dt channel
+        self.norm_in = nn.LayerNorm(d)
+        self.gru = nn.GRU(d, d // 2, num_layers=2, batch_first=True,
+                          bidirectional=True, dropout=m.dropout)
+        self.attn = nn.MultiheadAttention(d, m.n_heads, dropout=m.dropout,
+                                          batch_first=True)
+        self.ln = nn.LayerNorm(d)
+        self.drop = nn.Dropout(m.dropout)
+        self.last_attn = None
+
+    def forward(self, x, dt) -> Dict[str, torch.Tensor]:
+        h0 = self.norm_in(self.in_proj(torch.cat([x, dt.unsqueeze(-1)], -1)))
+        seq, _ = self.gru(h0)                                # [B, L, d]
+        q = seq[:, -1:, :]
+        ctx, w = self.attn(q, seq, seq, need_weights=True,
+                           average_attn_weights=True)
+        self.last_attn = w.detach()                          # [B, 1, L]
+        z = self.ln(seq[:, -1, :] + self.drop(ctx.squeeze(1)))
+        return dict(seq=seq, z=z, attn=self.last_attn)
+
+
+def build_encoder(n_features: int, m: C.ModelConfig) -> nn.Module:
+    kind = getattr(m, "encoder", "gru").lower()
+    if kind in ("transformer", "attn", "tt"):
+        return TemporalEncoder(n_features, m)
+    return GRUEncoder(n_features, m)
 
 
 # -----------------------------------------------------------------------------
@@ -146,7 +186,7 @@ class SentinelWorldModel(nn.Module):
         self.n_states = n_states
         self.horizon = horizon
 
-        self.encoder = TemporalEncoder(n_features, self.m)
+        self.encoder = build_encoder(n_features, self.m)
         self.stn = StateTransitionNet(self.m)
 
         d = self.m.d_model
@@ -156,9 +196,14 @@ class SentinelWorldModel(nn.Module):
         self.prog_head = nn.Sequential(
             nn.Linear(d, d // 2), nn.GELU(), nn.Dropout(self.m.dropout),
             nn.Linear(d // 2, n_states))
-        # direct multi-horizon projection from z_t (training-time stability)
-        self.horizon_attack = nn.Linear(d, horizon)
-        self.horizon_prog = nn.Linear(d, horizon * n_states)
+        # direct multi-horizon heads from z_t - MLP (was linear; linear
+        # under-fits next to the LSTM/GAT MLP heads).
+        self.horizon_attack = nn.Sequential(
+            nn.Linear(d, d), nn.GELU(), nn.Dropout(self.m.dropout),
+            nn.Linear(d, horizon))
+        self.horizon_prog = nn.Sequential(
+            nn.Linear(d, d), nn.GELU(), nn.Dropout(self.m.dropout),
+            nn.Linear(d, horizon * n_states))
 
     # -- shared heads on an arbitrary latent -------------------------------
     def apply_heads(self, z):
@@ -237,21 +282,80 @@ def build_model(n_features: int, cfg: Optional[C.Config] = None
                               horizon=cfg.sequence.horizon, m=cfg.model)
 
 
+@torch.no_grad()
+def wm_predict(model: "SentinelWorldModel", X, dt, device="cpu",
+               snapshots=None, self_ensemble=False, mc=24):
+    """The canonical SENTINEL-WM prediction: a self-ensemble of the world
+    model's own diverse views (direct multi-horizon head + K-step MC rollout +
+    STN 1-step head) averaged with any snapshot checkpoints.
+    Returns (attack_prob_k [N,K], prog_k [N,K])."""
+    import numpy as np
+    model.eval().to(device)
+    X = torch.as_tensor(np.asarray(X), dtype=torch.float32, device=device)
+    dt = torch.as_tensor(np.asarray(dt), dtype=torch.float32, device=device)
+    K = getattr(model, "horizon", 6)
+
+    def _one(mdl):
+        pa, pk, roll = [], [], []
+        for i in range(0, len(X), 512):
+            o = mdl(X[i:i + 512], dt[i:i + 512])
+            pa.append(torch.sigmoid(o["attack_logits_k"]).cpu().numpy())
+            pk.append(o["prog_logits_k"].argmax(-1).cpu().numpy())
+        direct = np.concatenate(pa)
+        prog = np.concatenate(pk)
+        if self_ensemble:
+            for i in range(0, len(X), 512):
+                r = mdl.rollout(X[i:i + 512], dt[i:i + 512], K=K, M=mc)
+                roll.append(r["attack_prob"])
+            direct = 0.6 * direct + 0.4 * np.concatenate(roll)
+        return direct, prog
+
+    probs, prog = _one(model)
+    n = 1
+    for sp in (snapshots or []):
+        try:
+            sd = torch.load(sp if os.path.isabs(sp) else os.path.join(C.ROOT, sp),
+                            map_location=device, weights_only=False)
+            snap = SentinelWorldModel(model.n_features, model.n_states,
+                                      model.horizon, model.m).to(device)
+            snap.load_state_dict(sd)
+            p2, _ = _one(snap)
+            probs = probs + p2
+            n += 1
+        except Exception as e:                           # pragma: no cover
+            print(f"[wm] snapshot {sp} skipped: {e}")
+    return probs / n, prog
+
+
 # -----------------------------------------------------------------------------
 # joint loss  (proposal 6.5)
 # -----------------------------------------------------------------------------
+def focal_bce(logits: torch.Tensor, target: torch.Tensor,
+              gamma: float = 0.0, pos_weight: Optional[torch.Tensor] = None
+              ) -> torch.Tensor:
+    """weighted BCE-with-logits, optionally focal-modulated (gamma>0)."""
+    bce = F.binary_cross_entropy_with_logits(
+        logits, target, pos_weight=pos_weight, reduction="none")
+    if gamma and gamma > 0:
+        p = torch.sigmoid(logits)
+        pt = torch.where(target > 0.5, p, 1 - p)
+        bce = bce * (1.0 - pt).clamp(min=1e-6) ** gamma
+    return bce.mean()
+
+
 def joint_loss(out: Dict[str, torch.Tensor],
                batch: Dict[str, torch.Tensor],
                z_next_target: torch.Tensor,
                m: C.ModelConfig,
                attack_pos_weight: Optional[torch.Tensor] = None,
-               prog_class_weight: Optional[torch.Tensor] = None
+               prog_class_weight: Optional[torch.Tensor] = None,
+               stage: str = "full"
                ) -> Dict[str, torch.Tensor]:
     y_atk = batch["y_atk"].float()                       # [B, K]
     y_prog = batch["y_prog"].long()                      # [B, K]
+    g = getattr(m, "focal_gamma", 0.0)
 
-    l_attack = F.binary_cross_entropy_with_logits(
-        out["attack_logits_k"], y_atk, pos_weight=attack_pos_weight)
+    l_attack = focal_bce(out["attack_logits_k"], y_atk, g, attack_pos_weight)
 
     B, K, S = out["prog_logits_k"].shape
     l_prog = F.cross_entropy(
@@ -261,10 +365,8 @@ def joint_loss(out: Dict[str, torch.Tensor],
     # supervise the shared heads (used by rollout) on the 1-step target
     y1, yp1 = y_atk[:, 0], y_prog[:, 0]
     l_attack = l_attack + 0.5 * (
-        F.binary_cross_entropy_with_logits(out["attack_logit_now"], y1,
-                                           pos_weight=attack_pos_weight)
-        + F.binary_cross_entropy_with_logits(out["attack_logit_sim1"], y1,
-                                             pos_weight=attack_pos_weight))
+        focal_bce(out["attack_logit_now"], y1, g, attack_pos_weight)
+        + focal_bce(out["attack_logit_sim1"], y1, g, attack_pos_weight))
     l_prog = l_prog + 0.5 * (
         F.cross_entropy(out["prog_logits_now"], yp1, weight=prog_class_weight)
         + F.cross_entropy(out["prog_logits_sim1"], yp1, weight=prog_class_weight))
@@ -276,10 +378,21 @@ def joint_loss(out: Dict[str, torch.Tensor],
     mu, lv = out["z_next_mu"], out["z_next_logvar"]
     l_kl = (-0.5 * (1 + lv - mu.pow(2) - lv.exp())).mean()
 
-    total = (m.w_attack * l_attack + m.w_progression * l_prog
-             + m.w_next_state * l_next + m.w_kl * l_kl)
+    # distillation: soft-target BCE to the strong classical teachers' probs
+    l_kd = torch.zeros((), device=y_atk.device)
+    kd_w = float(batch.get("kd_w", 0.0))
+    if kd_w > 0 and "teacher" in batch:
+        tp = batch["teacher"].float().clamp(1e-4, 1 - 1e-4)
+        l_kd = F.binary_cross_entropy_with_logits(out["attack_logits_k"], tp)
+
+    if stage == "A":
+        # two-stage: pretrain the encoder + attack head only (no STN / prog)
+        total = m.w_attack * l_attack + kd_w * l_kd
+    else:
+        total = (m.w_attack * l_attack + m.w_progression * l_prog
+                 + m.w_next_state * l_next + m.w_kl * l_kl + kd_w * l_kd)
     return dict(total=total, attack=l_attack.detach(), prog=l_prog.detach(),
-               next_state=l_next.detach(), kl=l_kl.detach())
+               next_state=l_next.detach(), kl=l_kl.detach(), kd=l_kd.detach())
 
 
 if __name__ == "__main__":

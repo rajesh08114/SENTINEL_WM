@@ -18,9 +18,9 @@ from typing import Dict, List, Optional, Sequence
 import numpy as np
 
 try:
-    from sklearn.metrics import roc_auc_score
+    from sklearn.metrics import roc_auc_score, average_precision_score
 except Exception:                                   # pragma: no cover
-    roc_auc_score = None
+    roc_auc_score = average_precision_score = None
 
 
 # -----------------------------------------------------------------------------
@@ -43,15 +43,29 @@ def binary_scores(y_true: Sequence[int], y_prob: Sequence[float],
     fpr = fp / (fp + tn) if (fp + tn) else 0.0
     acc = (tp + tn) / max(1, len(y_true))
 
-    auroc = float("nan")
+    auroc = pr_auc = float("nan")
     if roc_auc_score is not None and len(np.unique(y_true)) == 2:
         try:
             auroc = float(roc_auc_score(y_true, y_prob))
+            pr_auc = float(average_precision_score(y_true, y_prob))
         except Exception:
             pass
 
-    return dict(threshold=float(threshold), f1=f1, precision=prec, recall=rec,
-                fpr=fpr, auroc=auroc, accuracy=acc,
+    # best F1 achievable by sweeping the threshold (threshold-independent ceiling)
+    f1_best = f1
+    if len(np.unique(y_true)) == 2:
+        order = np.argsort(-y_prob)
+        yt = y_true[order]
+        tp_c = np.cumsum(yt); fp_c = np.cumsum(1 - yt)
+        P = yt.sum()
+        prec_c = tp_c / np.maximum(tp_c + fp_c, 1)
+        rec_c = tp_c / max(P, 1)
+        f1_c = 2 * prec_c * rec_c / np.maximum(prec_c + rec_c, 1e-9)
+        f1_best = float(f1_c.max())
+
+    return dict(threshold=float(threshold), f1=f1, f1_best=f1_best,
+                precision=prec, recall=rec,
+                fpr=fpr, auroc=auroc, pr_auc=pr_auc, accuracy=acc,
                 tp=tp, fp=fp, tn=tn, fn=fn, n=int(len(y_true)),
                 positives=int(y_true.sum()))
 
@@ -161,6 +175,9 @@ def lead_time(window_index: np.ndarray,
         lookback_floor = max(0, oi - horizon_k)
         j = oi - 1
         while j >= lookback_floor and now[j] == 0:
+            # window indices must be contiguous (no day boundary / gap in between)
+            if wi[j + 1] - wi[j] != 1:
+                break
             if warn[j] == 1:
                 first_warn = j
             else:
@@ -168,7 +185,8 @@ def lead_time(window_index: np.ndarray,
             j -= 1
         if first_warn is not None:
             warned += 1
-            leads.append((wi[oi] - wi[first_warn]) * window_seconds)
+            # lead is bounded by both the K-step horizon and the real gap
+            leads.append(min((oi - first_warn), horizon_k) * window_seconds)
         else:
             leads.append(0.0)
 
@@ -198,3 +216,48 @@ def summarise(tag: str, s: Dict) -> str:
     return (f"{tag:22s} F1={s['f1']:.3f} P={s['precision']:.3f} "
             f"R={s['recall']:.3f} FPR={s['fpr']:.3f} AUROC={s['auroc']:.3f} "
             f"(n={s['n']}, pos={s['positives']})")
+
+
+# -----------------------------------------------------------------------------
+# per-attack-family breakdown
+# -----------------------------------------------------------------------------
+def per_family_scores(y_true, y_prob, families, threshold: float = 0.5,
+                      min_support: int = 8, benign_label: str = "BENIGN"
+                      ) -> Dict[str, Dict]:
+    """
+    Per-family detection quality. For each non-benign family F, score its
+    positive anchors against the SHARED benign background (mask = family==F OR
+    family==BENIGN) so precision / recall / FPR / PR-AUC stay meaningful.
+    Families with < `min_support` positives get a {skipped: True, ...} record.
+
+    y_true / y_prob : any-horizon arrays [N]  (y_atk.max(1), probs_k.max(1))
+    families        : [N]  dominant_family of each anchor's forecast target
+    """
+    y_true = np.asarray(y_true).astype(int).ravel()
+    y_prob = np.asarray(y_prob, dtype=float).ravel()
+    fam = np.asarray(families, dtype=object).ravel()
+    out: Dict[str, Dict] = {}
+
+    benign_m = fam == benign_label
+    for f in sorted(set(fam.tolist())):
+        if f in (benign_label, "?", "", None):
+            continue
+        fm = fam == f
+        pos = int((y_true[fm] == 1).sum())
+        if pos < min_support:
+            out[f] = dict(family=f, skipped=True, positives=pos,
+                          windows=int(fm.sum()))
+            continue
+        m = fm | benign_m
+        s = binary_scores(y_true[m], y_prob[m], threshold)
+        s["family"] = f
+        s["skipped"] = False
+        out[f] = s
+
+    # benign reference row (FPR only really meaningful)
+    if benign_m.any():
+        s = binary_scores(y_true[benign_m], y_prob[benign_m], threshold)
+        s["family"] = benign_label
+        s["skipped"] = False
+        out[benign_label] = s
+    return out

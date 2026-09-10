@@ -1,0 +1,14 @@
+{
+  "name": "gru",
+  "family": "nn",
+  "kind": "gru",
+  "params": 191140,
+  "threshold": 0.03,
+  "epochs_run": 50,
+  "metrics": {
+    "f1": 0.7638190954773869,
+    "auroc": 0.99921591688719,
+    "mean_lead_time_s": 0.0,
+    "progression_acc": 0.9929977061451165
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "tcn",
+  "family": "nn",
+  "kind": "tcn",
+  "params": 172644,
+  "threshold": 0.05,
+  "epochs_run": 50,
+  "metrics": {
+    "f1": 0.8397790055248618,
+    "auroc": 0.9996618641576007,
+    "mean_lead_time_s": 0.0,
+    "progression_acc": 0.9945671858022456
+  }
+}

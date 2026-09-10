@@ -94,7 +94,11 @@ def clean_flow_frame(df: pd.DataFrame, verbose: bool = True) -> pd.DataFrame:
     df["is_attack"] = (df["attack_family"] != "BENIGN").astype(np.int8)
 
     # ---- day / ordering --------------------------------------------------- -
-    if "source_file" in df.columns:
+    # `unified_AllDays_labeled.csv` carries an explicit `source_day`; per-day
+    # files only carry `source_file`. Prefer the former, fall back to the latter.
+    if "source_day" in df.columns:
+        df["day"] = df["source_day"].map(derive_day)
+    elif "source_file" in df.columns:
         df["day"] = df["source_file"].map(derive_day)
     else:
         df["day"] = "Unknown"
@@ -122,10 +126,17 @@ def clean_flow_frame(df: pd.DataFrame, verbose: bool = True) -> pd.DataFrame:
             df[c] = df[c].fillna(0.0)
 
     # winsorise the notorious unbounded rate columns to a high percentile so a
-    # single zero-duration flow cannot dominate window aggregates.
+    # single zero-duration flow cannot dominate window aggregates. The clip
+    # bound is a fitted statistic, so compute it on the DAY_SCHEDULE train days
+    # only (Mon-Wed, always a subset of "train" in every split mode) - never on
+    # val/test rows.
+    _train_days = {d for d, (_n, _o, s) in C.DAY_SCHEDULE.items() if s == "train"}
+    fit_mask = (df["day"].isin(_train_days).to_numpy()
+                if "day" in df.columns and df["day"].isin(_train_days).any()
+                else np.ones(len(df), bool))
     for c in ("Flow Bytes/s", "Flow Packets/s", "Fwd Packets/s", "Bwd Packets/s"):
         if c in df.columns:
-            hi = np.nanpercentile(df[c].values, 99.9)
+            hi = np.nanpercentile(df.loc[fit_mask, c].values, 99.9)
             if np.isfinite(hi) and hi > 0:
                 df[c] = df[c].clip(upper=float(hi))
 
@@ -155,6 +166,12 @@ def load_and_clean(csv_paths: Optional[List[str]] = None,
     csv_paths = csv_paths or C.RAW_FLOW_CSVS
     csv_paths = [p for p in csv_paths if os.path.exists(p)]
     if not csv_paths:
+        fb = [p for p in getattr(C, "RAW_FLOW_CSVS_FALLBACK", []) if os.path.exists(p)]
+        if fb:
+            if verbose:
+                print(f"[load] primary CSV(s) missing -> fallback {os.path.basename(fb[0])}")
+            csv_paths = fb
+    if not csv_paths:
         raise FileNotFoundError(
             "No raw flow CSVs found. Expected at least "
             f"{C.RAW_FLOW_CSVS[0]}")
@@ -162,9 +179,11 @@ def load_and_clean(csv_paths: Optional[List[str]] = None,
     frames = []
     for p in csv_paths:
         if verbose:
-            print(f"[load] {os.path.basename(p)}")
+            gb = os.path.getsize(p) / 1e9
+            print(f"[load] {os.path.basename(p)} ({gb:.2f} GB)")
         df = pd.read_csv(p, low_memory=False)
         frames.append(clean_flow_frame(df, verbose=verbose))
+        del df
 
     full = pd.concat(frames, ignore_index=True)
     full = full.sort_values(["day", C.ORDER_COL], kind="mergesort").reset_index(drop=True)

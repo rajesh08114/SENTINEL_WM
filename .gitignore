@@ -2,9 +2,15 @@
 # SENTINEL-WM  .gitignore
 # ---------------------------------------------------------------------------
 
-# --- generated pipeline outputs (rebuilt by `python -m sentinel_wm.cli all`)
+# --- generated pipeline working files (rebuilt by `python -m sentinel_wm.cli all`)
 artifacts/*
 !artifacts/.gitkeep
+
+# --- research/ : commit the PROOF (reports, benchmark CSVs, figures, meta,
+#     registry, logs, ATT&CK CSV); ignore the regenerable heavy binaries.
+research/models/**/*.pkl
+research/models/**/*.pt
+research/simulations/forward_sim_test.json
 
 # --- datasets (too large / redistribution-restricted; see data/README.md)
 data/*

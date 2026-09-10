@@ -16,11 +16,18 @@ jupyter>=1.0
 nbconvert>=7.0
 matplotlib>=3.6
 
-# PCAP feature extraction (extractor.py) - only needed to (re)build features from
-# raw .pcap files; not required to run the model on the provided CSV.
-#   also requires the `tshark` binary on PATH (install Wireshark)
-# scapy>=2.5
+# Model-zoo baselines - OPTIONAL. The classical zoo skips these gracefully if
+# absent; installing them adds XGBoost + LightGBM to the benchmark.
+xgboost>=2.0
+lightgbm>=4.0
 
 # Explainability - OPTIONAL. If absent, explain.py falls back to a
 # finite-difference / gradient x input attribution with the same output shape.
-# shap>=0.44
+shap>=0.44
+
+# The GAT baseline is implemented from scratch - NO torch-geometric needed.
+
+# PCAP feature extraction (extraction/extractor.py) - only needed to (re)build
+# features from raw .pcap files; not required to run on the provided CSVs.
+#   also requires the `tshark` binary on PATH (install Wireshark)
+# scapy>=2.5

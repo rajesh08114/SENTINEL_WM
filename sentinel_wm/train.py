@@ -54,21 +54,46 @@ def _loader(d: Dict, batch_size: int, shuffle: bool):
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, drop_last=False)
 
 
+SNAP_DIR = os.path.join(C.ARTIFACTS, "world_model_snapshots")
+
+
+def _teacher_probs(seq, cfg, tr) -> "torch.Tensor|None":
+    """mean per-horizon P(attack) of the strong classical `__seq` teachers,
+    on the TRAIN split, aligned to `tr` order."""
+    import glob
+    import pickle
+    from sentinel_wm.baselines import _proba
+    cdir = os.path.join(C.research_dir(), "models", "classical")
+    m = seq["split"] == "train"
+    Xseq = seq["X"][m].reshape(m.sum(), -1)              # flattened -> `__seq` input
+    K = int(seq["K"])
+    got = []
+    for name in cfg.train.distill_teachers:
+        p = os.path.join(cdir, f"{name}.pkl")
+        if not os.path.exists(p):
+            continue
+        try:
+            with open(p, "rb") as fh:
+                ests = pickle.load(fh)
+            pr = np.stack([_proba(e, Xseq) for e in ests], 1)   # [N, K]
+            got.append(pr)
+        except Exception as e:
+            print(f"[train] teacher {name} skipped: {e}")
+    if not got:
+        print("[train] no distillation teachers found - run `baseline` first")
+        return None
+    return torch.as_tensor(np.mean(got, 0).astype(np.float32))
+
+
 # -----------------------------------------------------------------------------
 def evaluate_split(model, d: Dict, cfg: C.Config, device,
-                   threshold: float = None) -> Dict:
+                   threshold: float = None, snapshots=None,
+                   self_ensemble: bool = False) -> Dict:
+    from sentinel_wm.models import wm_predict
     model.eval()
     K = cfg.sequence.horizon
-    probs_k, prog_k = [], []
-    with torch.no_grad():
-        for i in range(0, len(d["X"]), 512):
-            x = d["X"][i:i + 512].to(device)
-            dt = d["dt"][i:i + 512].to(device)
-            out = model(x, dt)
-            probs_k.append(torch.sigmoid(out["attack_logits_k"]).cpu().numpy())
-            prog_k.append(out["prog_logits_k"].argmax(-1).cpu().numpy())
-    probs_k = np.concatenate(probs_k, 0)                 # [N, K]
-    prog_k = np.concatenate(prog_k, 0)
+    probs_k, prog_k = wm_predict(model, d["X"].numpy(), d["dt"].numpy(), device,
+                                 snapshots=snapshots, self_ensemble=self_ensemble)
     y_atk = d["y_atk"].numpy().astype(int)
     y_prog = d["y_prog"].numpy().astype(int)
     y_now = d["y_now"].numpy().astype(int)
@@ -109,6 +134,22 @@ def train(cfg: C.Config, args) -> Dict:
 
     model = build_model(n_feat, cfg).to(device)
 
+    # ---- self-supervised encoder pre-training (masked-window reconstruction) --
+    if getattr(cfg.train, "ssl_pretrain", False):
+        from sentinel_wm.pretrain import pretrain_encoder, load_pretrained_into, OUT
+        if not os.path.exists(OUT):
+            pretrain_encoder(cfg, device, epochs=cfg.train.ssl_epochs, verbose=True)
+        load_pretrained_into(model.encoder, verbose=True)
+
+    # ---- distillation teacher: soft targets from the strong classical models --
+    teacher_prob = None
+    if getattr(cfg.train, "distill", False):
+        teacher_prob = _teacher_probs(seq, cfg, tr)
+        if teacher_prob is not None:
+            teacher_prob = teacher_prob.to(device)
+            print(f"[train] distillation ON  teachers={cfg.train.distill_teachers} "
+                  f"w_distill={cfg.train.w_distill}")
+
     # class weights from the training split
     pos = tr["y_atk"].mean().clamp(1e-3, 1 - 1e-3)
     attack_pos_weight = ((1 - pos) / pos).to(device)
@@ -123,27 +164,74 @@ def train(cfg: C.Config, args) -> Dict:
 
     opt = torch.optim.AdamW(model.parameters(), lr=cfg.train.lr,
                             weight_decay=cfg.train.weight_decay)
-    sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, cfg.train.epochs)
-    loader = _loader(tr, cfg.train.batch_size, shuffle=True)
+    T0 = getattr(cfg.train, "warm_restart_period", 0)
+    sched = (torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(opt, T0)
+             if T0 and T0 > 0
+             else torch.optim.lr_scheduler.CosineAnnealingLR(opt, cfg.train.epochs))
+
+    # balanced batch sampler: >= balanced_sampler_min_pos positive windows/batch
+    from sentinel_wm.nn_common import _balanced_sampler
+    from torch.utils.data import DataLoader, TensorDataset
+    samp = _balanced_sampler(tr["y_atk"],
+                             getattr(cfg.train, "balanced_sampler_min_pos", 0.0))
+    K = int(seq["K"])
+    tp_np = (teacher_prob.cpu().numpy() if teacher_prob is not None
+             else np.zeros((len(tr["X"]), K), np.float32))
+    if getattr(cfg.train, "augment", False):
+        from sentinel_wm.augment import AugmentedSeqDataset
+        ds = AugmentedSeqDataset(
+            dict(X=tr["X"].numpy(), dt=tr["dt"].numpy(), x_next=tr["x_next"].numpy(),
+                 y_atk=tr["y_atk"].numpy(), y_prog=tr["y_prog"].numpy(),
+                 teacher=tp_np))
+        print("[train] sequence augmentation ON")
+    else:
+        ds = TensorDataset(tr["X"], tr["dt"], tr["x_next"], tr["y_atk"],
+                           tr["y_prog"], torch.as_tensor(tp_np))
+    loader = DataLoader(ds, batch_size=cfg.train.batch_size,
+                        sampler=samp, shuffle=samp is None)
+
+    # two-stage: stage A pretrains encoder + attack head only (loss=w_attack*BCE)
+    two_stage = getattr(cfg.train, "two_stage", False)
+    stage_a_epochs = int(cfg.train.epochs * getattr(cfg.train, "two_stage_frac", 0.35)) \
+        if two_stage else 0
+
+    freeze_enc = two_stage and getattr(cfg.train, "two_stage_freeze_encoder", False)
 
     curve, best_val, best_state, patience = [], -1.0, None, 0
+    best_a_state, best_a = None, -1.0
     for ep in range(1, cfg.train.epochs + 1):
+        stage = "A" if ep <= stage_a_epochs else "full"
+        if ep == stage_a_epochs + 1:
+            # start stage B from stage A's BEST-val encoder+heads, not its last
+            if best_a_state is not None:
+                model.load_state_dict(best_a_state)
+            if freeze_enc:
+                for p in model.encoder.parameters():
+                    p.requires_grad_(False)
+                print("[train] stage B: encoder frozen at stage-A best; "
+                      "training STN + progression + light attack-head fine-tune")
+            opt = torch.optim.AdamW(
+                [p for p in model.parameters() if p.requires_grad],
+                lr=cfg.train.lr * 0.5, weight_decay=cfg.train.weight_decay)
+            sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+                opt, max(cfg.train.epochs - stage_a_epochs, 1))
         model.train()
         agg = {}
         t0 = time.time()
-        for xb, dtb, xnb, yak, ypk in loader:
+        kd_w = (cfg.train.w_distill * max(0.0, 1.0 - ep / cfg.train.epochs)
+                if teacher_prob is not None else 0.0)     # decay KD over training
+        for xb, dtb, xnb, yak, ypk, tpk in loader:
             xb, dtb, xnb = xb.to(device), dtb.to(device), xnb.to(device)
-            yak, ypk = yak.to(device), ypk.to(device)
+            yak, ypk, tpk = yak.to(device), ypk.to(device), tpk.to(device)
             with torch.no_grad():
                 # z_{t+1} target = encoder latent one window ahead.
-                # Reuse x_next as the last row of a shifted history: cheap proxy
-                # is encoding the history with its final row replaced by x_next.
                 x_shift = torch.cat([xb[:, 1:, :], xnb.unsqueeze(1)], dim=1)
                 z_next_target = model.encoder(x_shift, dtb)["z"]
             out = model(xb, dtb)
-            losses = joint_loss(out, dict(y_atk=yak, y_prog=ypk),
+            losses = joint_loss(out, dict(y_atk=yak, y_prog=ypk, teacher=tpk,
+                                          kd_w=kd_w),
                                 z_next_target, cfg.model,
-                                attack_pos_weight, prog_w)
+                                attack_pos_weight, prog_w, stage=stage)
             opt.zero_grad()
             losses["total"].backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.train.grad_clip)
@@ -156,17 +244,28 @@ def train(cfg: C.Config, args) -> Dict:
 
         val = evaluate_split(model, va, cfg, device)
         score = val["any_horizon"]["f1"] + 0.5 * val["progression_acc"]
-        curve.append(dict(epoch=ep, **{f"loss_{k}": agg[k] for k in agg},
+        curve.append(dict(epoch=ep, stage=stage,
+                          **{f"loss_{k}": agg[k] for k in agg},
                           val_f1=val["any_horizon"]["f1"],
                           val_auroc=val["any_horizon"]["auroc"],
                           val_prog_acc=val["progression_acc"],
                           val_mlt=val["lead_time"]["mean_lead_time_s"]))
-        print(f"  ep{ep:03d} {time.time()-t0:4.1f}s "
+        print(f"  ep{ep:03d}[{stage}] {time.time()-t0:4.1f}s "
               f"L={agg['total']:.4f} (atk {agg['attack']:.3f} prog {agg['prog']:.3f} "
               f"next {agg['next_state']:.3f}) | "
               f"val F1={val['any_horizon']['f1']:.3f} AUROC={val['any_horizon']['auroc']:.3f} "
               f"progAcc={val['progression_acc']:.3f} MLT={val['lead_time']['mean_lead_time_s']:.0f}s")
 
+        # stage A: track the best-val encoder+head (by attack score only), no patience
+        if stage == "A":
+            a_score = val["any_horizon"]["f1"] + 0.5 * val["any_horizon"]["auroc"]
+            if a_score > best_a:
+                best_a = a_score
+                best_a_state = {k: v.detach().cpu().clone()
+                                for k, v in model.state_dict().items()}
+            continue
+        if ep == stage_a_epochs + 1:
+            best_val, patience = -1.0, 0        # reset at the A->full transition
         if score > best_val:
             best_val, best_state, patience = score, {
                 k: v.detach().cpu().clone() for k, v in model.state_dict().items()}, 0
@@ -176,18 +275,36 @@ def train(cfg: C.Config, args) -> Dict:
                 print(f"[train] early stop at epoch {ep}")
                 break
 
+        # snapshot ensemble: save at each cosine warm-restart trough
+        if getattr(cfg.train, "snapshot_ensemble", False) and T0 and ep > stage_a_epochs \
+           and (ep - stage_a_epochs) % T0 == 0:
+            os.makedirs(SNAP_DIR, exist_ok=True)
+            sp = os.path.join(SNAP_DIR, f"snap_ep{ep:03d}.pt")
+            torch.save({k: v.detach().cpu().clone()
+                        for k, v in model.state_dict().items()}, sp)
+            print(f"[train] snapshot -> {sp}")
+
     if best_state is not None:
         model.load_state_dict(best_state)
 
-    # freeze alert threshold on validation, then evaluate test
-    val_final = evaluate_split(model, va, cfg, device)
+    import glob
+    snaps = sorted(glob.glob(os.path.join(SNAP_DIR, "snap_ep*.pt")))
+    self_ens = bool(getattr(cfg.train, "self_ensemble", False))
+
+    # freeze alert threshold on validation (using the SAME ensemble that the
+    # benchmark will use), then evaluate test
+    val_final = evaluate_split(model, va, cfg, device, snapshots=snaps,
+                               self_ensemble=self_ens)
     thr = val_final["threshold"]
-    test_final = evaluate_split(model, te, cfg, device, threshold=thr)
+    test_final = evaluate_split(model, te, cfg, device, threshold=thr,
+                                snapshots=snaps, self_ensemble=self_ens)
 
     torch.save(dict(state_dict=model.state_dict(),
                     config=model.config_dict(),
                     feature_names=list(seq["feature_names"]),
                     alert_threshold=thr,
+                    snapshots=[os.path.relpath(s, C.ROOT) for s in snaps],
+                    self_ensemble=self_ens,
                     sequence=dict(L=int(seq["L"]), K=int(seq["K"]))),
                C.WORLD_MODEL_PT)
 
