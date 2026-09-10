@@ -142,13 +142,22 @@ class _TorchPredictor:
 
 
 # -----------------------------------------------------------------------------
-def build_registry(verbose: bool = True) -> Dict:
+def build_registry(verbose: bool = True, base_dir: str = None) -> Dict:
+    """Scan a `<base>/models/{classical,nn}` tree and write its `registry.json`.
+    `base_dir` defaults to the RESEARCH output dir (`runs/`); `bundle.py` passes
+    the bundle dir. The read helpers (`load_predictor`) prefer the bundle, but
+    the writer must not, or a stale bundle would capture a fresh research run."""
     reg: Dict[str, Dict] = {}
-    classical_dir, nn_dir = _classical_dir(), _nn_dir()
-    registry_json = _registry_json()
-    # store model paths relative to whichever tree they live in (bundle or research)
-    _base = C.model_dir() if os.path.isdir(os.path.join(C.model_dir(), "models")) else C.ROOT
-    wm_pt = C.bundled("world_model.pt") or C.WORLD_MODEL_PT
+    base_dir = base_dir or C.research_dir()
+    classical_dir = os.path.join(base_dir, "models", "classical")
+    nn_dir = os.path.join(base_dir, "models", "nn")
+    registry_json = os.path.join(base_dir, "models", "registry.json")
+    # paths in registry.json are relative to base_dir; load_predictor resolves
+    # against C.model_dir(), C.ROOT, and the registry's own dir.
+    _base = base_dir
+    wm_pt = os.path.join(base_dir, "models", "world_model.pt")
+    if not os.path.exists(wm_pt):
+        wm_pt = C.bundled("world_model.pt") or C.WORLD_MODEL_PT
 
     for meta_path in sorted(glob.glob(os.path.join(classical_dir, "*.meta.json"))):
         meta = json.load(open(meta_path))
@@ -249,9 +258,11 @@ def load_predictor(name: str, device: str = "cpu"):
     if name not in reg:
         raise KeyError(f"{name!r} not in registry. have: {list(reg)}")
     r = reg[name]
-    # `path` is stored relative to C.ROOT (research tree) or to MODEL_DIR (bundle);
-    # take whichever base actually has the file.
+    # `path` is relative to the registry's base dir (bundle, runs/, or ROOT).
+    rj_base = os.path.dirname(os.path.dirname(rj))         # <base>/models/registry.json -> <base>
     path = next((c for c in (os.path.join(C.model_dir(), r["path"]),
+                             os.path.join(rj_base, r["path"]),
+                             os.path.join(C.research_dir(), r["path"]),
                              os.path.join(C.ROOT, r["path"]))
                  if os.path.exists(c)), os.path.join(C.ROOT, r["path"]))
     if r["framework"] == "sklearn":

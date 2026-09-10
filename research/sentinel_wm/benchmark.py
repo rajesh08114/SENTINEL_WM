@@ -77,19 +77,30 @@ def _score_nn(pt_path: str, seq: Dict, te_mask, device="cpu"
         return _score_gat(pt_path, seq, te_mask, device)
     from sentinel_wm.nn_common import load_nn_checkpoint
     model, ck = load_nn_checkpoint(pt_path, device)
-    x = torch.as_tensor(seq["X"][te_mask], dtype=torch.float32, device=device)
-    dt = torch.as_tensor(seq["dt"][te_mask], dtype=torch.float32, device=device)
-    probs, progs = [], []
+
+    def _run(mask):
+        x = torch.as_tensor(seq["X"][mask], dtype=torch.float32, device=device)
+        dt = torch.as_tensor(seq["dt"][mask], dtype=torch.float32, device=device)
+        pa = []
+        pp = []
+        with torch.no_grad():
+            for i in range(0, len(x), 512):
+                o = model(x[i:i + 512], dt[i:i + 512])
+                pa.append(torch.sigmoid(o["attack_logits_k"]).cpu().numpy())
+                pp.append(o["prog_logits_k"].argmax(-1).cpu().numpy())
+        return np.concatenate(pa), np.concatenate(pp)
+
     t0 = time.perf_counter()
-    with torch.no_grad():
-        for i in range(0, len(x), 512):
-            o = model(x[i:i + 512], dt[i:i + 512])
-            probs.append(torch.sigmoid(o["attack_logits_k"]).cpu().numpy())
-            progs.append(o["prog_logits_k"].argmax(-1).cpu().numpy())
-    infer_ms = (time.perf_counter() - t0) * 1000 / max(len(x), 1)
-    return (np.concatenate(probs), np.concatenate(progs),
+    probs, progs = _run(te_mask)
+    infer_ms = (time.perf_counter() - t0) * 1000 / max(int(te_mask.sum()), 1)
+    # fresh best-F1 threshold on validation (see _score_world_model)
+    va = seq["split"] == "val"
+    p_va, _ = _run(va)
+    thr = M.calibrate_threshold(seq["y_atk"][va].max(1).astype(int),
+                                p_va.max(1), C.CONFIG.train.target_fpr)
+    return (probs, progs,
             dict(family=ck.get("family", "nn"), kind=ck.get("kind"),
-                 threshold=ck.get("alert_threshold"),
+                 threshold=thr,
                  params=sum(p.numel() for p in model.parameters()),
                  infer_ms=infer_ms))
 
@@ -106,18 +117,27 @@ def _score_gat(pt_path, seq, te_mask, device="cpu"):
                           len(C.PROGRESSION_STATES),
                           d_model=ex.get("d_model", 96))
     model.load_state_dict(ck["state_dict"]); model.eval().to(device)
-    ds = _GraphDataset(ctx, seq["day"][te_mask], seq["window_index"][te_mask],
-                       seq["y_atk"][te_mask], seq["y_prog"][te_mask])
-    probs, progs = [], []
+
+    def _run(mask):
+        ds = _GraphDataset(ctx, seq["day"][mask], seq["window_index"][mask],
+                           seq["y_atk"][mask], seq["y_prog"][mask])
+        pa, pp = [], []
+        with torch.no_grad():
+            for nf, aj, mk, _a, _p in DataLoader(ds, batch_size=256):
+                o = model(nf.to(device), aj.to(device), mk.to(device))
+                pa.append(torch.sigmoid(o["attack_logits_k"]).cpu().numpy())
+                pp.append(o["prog_logits_k"].argmax(-1).cpu().numpy())
+        return np.concatenate(pa), np.concatenate(pp)
+
     t0 = time.perf_counter()
-    with torch.no_grad():
-        for nf, aj, mk, _a, _p in DataLoader(ds, batch_size=256):
-            o = model(nf.to(device), aj.to(device), mk.to(device))
-            probs.append(torch.sigmoid(o["attack_logits_k"]).cpu().numpy())
-            progs.append(o["prog_logits_k"].argmax(-1).cpu().numpy())
-    infer_ms = (time.perf_counter() - t0) * 1000 / max(te_mask.sum(), 1)
-    return (np.concatenate(probs), np.concatenate(progs),
-            dict(family="graph", kind="gat", threshold=ck.get("alert_threshold"),
+    probs, progs = _run(te_mask)
+    infer_ms = (time.perf_counter() - t0) * 1000 / max(int(te_mask.sum()), 1)
+    va = seq["split"] == "val"
+    p_va, _ = _run(va)
+    thr = M.calibrate_threshold(seq["y_atk"][va].max(1).astype(int),
+                                p_va.max(1), C.CONFIG.train.target_fpr)
+    return (probs, progs,
+            dict(family="graph", kind="gat", threshold=thr,
                  params=sum(p.numel() for p in model.parameters()),
                  infer_ms=infer_ms))
 
@@ -143,8 +163,16 @@ def _score_world_model(seq: Dict, te_mask, device="cpu"):
     if self_ens or snaps:
         kind += f" self-ens({len(snaps)}snap)"
     n_params = sum(p.numel() for p in model.parameters())
+
+    # fresh best-F1 threshold on VALIDATION (the stored alert_threshold was
+    # FPR-calibrated during training and transfers badly to the test prevalence)
+    va = seq["split"] == "val"
+    wm_va, _ = wm_predict(model, seq["X"][va], seq["dt"][va], device,
+                          snapshots=snaps, self_ensemble=self_ens)
+    thr_wm = M.calibrate_threshold(seq["y_atk"][va].max(1).astype(int),
+                                   wm_va.max(1), cfg.train.target_fpr)
     out = [(probs, progs, dict(family="world_model", kind=kind,
-                               threshold=ck.get("alert_threshold"),
+                               threshold=thr_wm,
                                params=n_params, infer_ms=infer_ms))]
 
     # the deployed "SENTINEL-WM system" = WM self-ensemble blended with the
@@ -153,9 +181,6 @@ def _score_world_model(seq: Dict, te_mask, device="cpu"):
     if getattr(cfg.train, "system_blend_teachers", False):
         members = getattr(cfg.train, "system_members", ())
         mp_te = _member_probs(seq, te_mask, members, device)
-        va = seq["split"] == "val"
-        wm_va, _ = wm_predict(model, seq["X"][va], seq["dt"][va], device,
-                              snapshots=snaps, self_ensemble=self_ens)
         mp_va = _member_probs(seq, va, members, device)
         if mp_te is not None and mp_va is not None:
             y_va = seq["y_atk"][va].max(1).astype(int)
@@ -165,10 +190,13 @@ def _score_world_model(seq: Dict, te_mask, device="cpu"):
                 if s["pr_auc"] and s["pr_auc"] > best_s:
                     best_s, best_w = s["pr_auc"], float(w)
             sysp = best_w * probs + (1 - best_w) * mp_te
+            thr_sys = M.calibrate_threshold(
+                y_va, (best_w * wm_va + (1 - best_w) * mp_va).max(1),
+                cfg.train.target_fpr)
             out.append((sysp, progs, dict(
                 family="system",
                 kind=f"WM self-ens x{best_w:.2f} + [{'+'.join(members)}]",
-                threshold=None, params=n_params, infer_ms=infer_ms)))
+                threshold=thr_sys, params=n_params, infer_ms=infer_ms)))
     return out
 
 

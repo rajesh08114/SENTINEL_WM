@@ -104,18 +104,8 @@ def assemble_bundle(dst: Optional[str] = None, verbose: bool = True) -> dict:
                 n_models += f.endswith((".pkl", ".pt"))
 
     # ---- 4. rebuild registry.json against the bundle ------------------
-    prev = os.environ.get("SENTINEL_WM_MODEL_DIR")
-    os.environ["SENTINEL_WM_MODEL_DIR"] = dst
-    try:
-        import importlib
-        from sentinel_wm import registry as _reg
-        importlib.reload(_reg)                       # pick up MODEL_DIR
-        reg = _reg.build_registry(verbose=False)
-    finally:
-        if prev is None:
-            os.environ.pop("SENTINEL_WM_MODEL_DIR", None)
-        else:
-            os.environ["SENTINEL_WM_MODEL_DIR"] = prev
+    from sentinel_wm import registry as _reg
+    reg = _reg.build_registry(verbose=False, base_dir=dst)
 
     # ---- 5. manifest -------------------------------------------------
     manifest = dict(

@@ -359,21 +359,24 @@ class TrainConfig:
     # --- getting SENTINEL-WM to #1 (docs/technical_reference.md Part 2) --------
     ssl_pretrain: bool = True         # masked-window encoder pre-training (pretrain.py)
     ssl_epochs: int = 40
-    distill: bool = True              # KD from the strongest `__seq` teachers
-    # Teachers must actually be GOOD on the current split. On the leakage-safe
-    # `stratified` split (~3% test positives) the tree `__seq` boosters collapse
-    # (hist_gradient_boosting__seq F1 ~0.05), so KD from them dragged SENTINEL-WM
-    # DOWN. The MLP / LR `__seq` heads + xgboost stay usable.
+    # Distillation OFF: on the leakage-safe `stratified` split EVERY classical
+    # `__seq` teacher (best is mlp_sklearn__seq, F1* 0.62) is weaker than the
+    # world model's own F1* (0.90), so KD can only drag it down. Re-enable and
+    # point `distill_teachers` at the NN zoo (lstm/tcn) once `_teacher_probs`
+    # learns to load `.pt` checkpoints (train.py TODO).
+    distill: bool = False
     distill_teachers: tuple = ("mlp_sklearn__seq", "xgboost__seq",
                                "logistic_regression__seq")
     w_distill: float = 0.5            # KD loss weight (soft BCE to the teacher probs)
     snapshot_ensemble: bool = True    # save a checkpoint at each warm-restart trough, average at inference
-    self_ensemble: bool = True        # blend the WM's direct head + K-step rollout at inference
+    self_ensemble: bool = True        # snapshot-average the direct multi-horizon head at inference
     # weight on the DIRECT multi-horizon head vs the K-step MC rollout in the
-    # self-ensemble. On a now-cast-dominated test (sustained attacks, few onsets)
-    # the rollout regresses toward the base rate and hurts F1, so trust the
-    # direct head more; lower this (-> 0.6) on a lead-time-focused split.
-    self_ensemble_direct_w: float = 0.85
+    # benchmarked self-ensemble. 1.0 = direct head only (the rollout regresses
+    # toward the base rate on a now-cast-dominated test and hurts F1). The
+    # forward-simulation product (forward_sim.simulate_anchor) always uses the
+    # full rollout regardless; this only affects the benchmark prob. Lower it
+    # (-> 0.6) on a lead-time-focused split where onsets are in the test set.
+    self_ensemble_direct_w: float = 1.0
     # the deployed "SENTINEL-WM system" = the world-model self-ensemble blended
     # (val-tuned weight) with the STRONGEST sequence models. The tree boosters
     # collapse on this split, so blend with the neural zoo instead.

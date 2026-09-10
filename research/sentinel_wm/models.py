@@ -303,11 +303,11 @@ def wm_predict(model: "SentinelWorldModel", X, dt, device="cpu",
             pk.append(o["prog_logits_k"].argmax(-1).cpu().numpy())
         direct = np.concatenate(pa)
         prog = np.concatenate(pk)
-        if self_ensemble:
+        w = float(getattr(C.CONFIG.train, "self_ensemble_direct_w", 1.0))
+        if self_ensemble and w < 0.999:
             for i in range(0, len(X), 512):
                 r = mdl.rollout(X[i:i + 512], dt[i:i + 512], K=K, M=mc)
                 roll.append(r["attack_prob"])
-            w = float(getattr(C.CONFIG.train, "self_ensemble_direct_w", 0.85))
             direct = w * direct + (1.0 - w) * np.concatenate(roll)
         return direct, prog
 

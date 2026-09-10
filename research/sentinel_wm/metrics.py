@@ -70,17 +70,44 @@ def binary_scores(y_true: Sequence[int], y_prob: Sequence[float],
                 positives=int(y_true.sum()))
 
 
-def calibrate_threshold(y_true: Sequence[int], y_prob: Sequence[float],
-                        target_fpr: float = 0.05,
-                        grid: Optional[np.ndarray] = None) -> float:
-    """Smallest threshold whose FPR on this set is <= target_fpr (proposal 6.6)."""
+def f1_threshold(y_true: Sequence[int], y_prob: Sequence[float],
+                 max_fpr: float = 0.15,
+                 grid: Optional[np.ndarray] = None) -> float:
+    """Threshold that MAXIMISES F1 on this set, subject to a false-alarm budget
+    (FPR <= max_fpr). This transfers across a val->test prevalence shift far
+    better than a pure FPR target: the smallest-FPR threshold is usually near 0
+    for a well-separated model, so any shift blows the test FPR up to 1.0."""
     y_true = np.asarray(y_true).astype(int).ravel()
     y_prob = np.asarray(y_prob, dtype=float).ravel()
-    grid = grid if grid is not None else np.linspace(0.01, 0.99, 99)
-    best = 0.5
+    if len(np.unique(y_true)) < 2:
+        return 0.5
+    grid = grid if grid is not None else np.linspace(0.01, 0.99, 197)
+    best_thr, best_f1 = 0.5, -1.0
+    fallback_thr, fallback_f1 = 0.5, -1.0
     for thr in grid:
-        s = binary_scores(y_true, y_prob, thr)
-        if s["fpr"] <= target_fpr:
+        s = binary_scores(y_true, y_prob, float(thr))
+        if s["f1"] > fallback_f1:
+            fallback_thr, fallback_f1 = float(thr), s["f1"]
+        if s["fpr"] <= max_fpr and s["f1"] > best_f1:
+            best_thr, best_f1 = float(thr), s["f1"]
+    return best_thr if best_f1 >= 0 else fallback_thr
+
+
+def calibrate_threshold(y_true: Sequence[int], y_prob: Sequence[float],
+                        target_fpr: float = 0.05, mode: str = "f1",
+                        grid: Optional[np.ndarray] = None) -> float:
+    """mode="f1" (default): best-F1 threshold within an FPR budget of
+    max(0.15, 3*target_fpr) - robust to the val->test shift.
+    mode="fpr": legacy - smallest threshold with FPR <= target_fpr."""
+    y_true = np.asarray(y_true).astype(int).ravel()
+    y_prob = np.asarray(y_prob, dtype=float).ravel()
+    if mode == "f1":
+        return f1_threshold(y_true, y_prob,
+                            max_fpr=max(0.15, 3.0 * target_fpr), grid=grid)
+    g = grid if grid is not None else np.linspace(0.01, 0.99, 99)
+    best = 0.5
+    for thr in g:
+        if binary_scores(y_true, y_prob, thr)["fpr"] <= target_fpr:
             best = float(thr)
             break
     return best
