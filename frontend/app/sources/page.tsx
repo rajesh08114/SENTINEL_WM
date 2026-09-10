@@ -7,8 +7,9 @@ import { Panel } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/wizard/Stepper";
 import { CsvWizard } from "@/components/sources/CsvWizard";
+import { PcapUpload } from "@/components/sources/PcapUpload";
 import { useStore } from "@/lib/store";
-import { apiBase, wsBase } from "@/lib/api";
+import { wsBase } from "@/lib/api";
 
 export default function SourcesPage() {
   const csv = useStore((s) => s.csv);
@@ -29,49 +30,12 @@ export default function SourcesPage() {
           <CsvWizard />
         </TabsContent>
         <TabsContent value="pcap" className="mt-4">
-          <PcapPanel />
+          <PcapUpload />
         </TabsContent>
         <TabsContent value="telemetry" className="mt-4">
           <TelemetryPanel />
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function PcapPanel() {
-  return (
-    <div className="flex flex-col gap-4">
-      <Panel title="PCAP ingestion — Phase 2">
-        <p className="text-sm text-muted">
-          PCAP upload is scoped for Phase 2. The endpoint{" "}
-          <code>POST /forecast/pcap</code> exists and deliberately returns{" "}
-          <code>501 Not Implemented</code> today.
-        </p>
-        <p className="text-sm text-muted">
-          For real packets now, use <b className="text-ink">Live capture</b> on the Live
-          page — the host agent turns sniffed packets into the same flow schema this
-          pipeline consumes.
-        </p>
-        <Button
-          variant="subtle"
-          className="w-max"
-          onClick={() =>
-            fetch(apiBase() + "/forecast/pcap", { method: "POST" })
-              .then((r) => r.json().catch(() => ({})))
-              .then((b) => toast.info(`Server: ${b.detail || "501 not implemented"}`))
-              .catch(() => toast.error("unreachable"))
-          }
-        >
-          Ping the endpoint
-        </Button>
-      </Panel>
-      <Panel title="Interim workaround">
-        <p className="text-sm text-muted">
-          Convert offline with CICFlowMeter and upload the CSV:{" "}
-          <code>cicflowmeter -f capture.pcap -c flows.csv</code>.
-        </p>
-      </Panel>
     </div>
   );
 }

@@ -24,6 +24,7 @@ dependencies = [
     "pyarrow>=10.0",
     "scikit-learn>=1.0",        # unpickle the RobustScaler in the bundle
     "torch>=2.1",               # for a CPU-only image: install the CPU wheel first
+    "scapy>=2.5",               # offline PCAP -> flow reassembly (/forecast/pcap)
 ]
 
 [project.optional-dependencies]

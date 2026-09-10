@@ -49,6 +49,7 @@ cd backend
 pip install -e .
 uvicorn app.main:app --reload
 #   POST /forecast/csv          flow-CSV upload → forecast JSON
+#   POST /forecast/pcap         .pcap/.pcapng → offline flow reassembly → forecast JSON
 #   POST /live/sessions         start a synthetic test-bed or live-capture session
 #   WS   /live/sessions/{id}/stream    subscribe to a live session's forecasts
 #   WS   /agent                 a capture agent connects here

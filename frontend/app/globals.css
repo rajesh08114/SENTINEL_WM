@@ -26,6 +26,12 @@
   --st-ACTIVE: #ff4d4d;
   --st-CONTINUATION: #c07dff;
 
+  /* dense/dashboard spacing scale (8px base) */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
+  --radius: 8px;
+  --dur: 160ms;
+
   color-scheme: dark;
 }
 :root[data-theme="light"] {
@@ -37,10 +43,19 @@
 * { border-color: var(--border); }
 html, body { background: var(--bg); color: var(--fg); }
 body { font-family: "Fira Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { letter-spacing: -0.01em; }
 
-:where(a, button, [tabindex], input, select, textarea):focus-visible {
+:where(a, button, [tabindex], input, select, textarea, [role="button"]):focus-visible {
   outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px;
 }
+:where(button, a, [role="button"], summary, [role="tab"]):not(:disabled) { cursor: pointer; }
+::selection { background: color-mix(in srgb, var(--brand) 30%, transparent); }
+
+/* thin, themed scrollbars for the dense panels */
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+*::-webkit-scrollbar-thumb:hover { background: var(--brand-dim); }
 
 .grid-bg {
   background-image:
@@ -71,10 +86,16 @@ body { font-family: "Fira Sans", system-ui, sans-serif; -webkit-font-smoothing: 
 .conf-Low { color: var(--muted); border-color: var(--border); background: color-mix(in srgb, var(--muted) 12%, transparent); }
 
 .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
-.tbl th, .tbl td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
-.tbl th { color: var(--muted); font-weight: 500; position: sticky; top: 0; background: var(--surface); }
+.tbl th, .tbl td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--border); }
+.tbl th { color: var(--muted); font-weight: 500; position: sticky; top: 0; z-index: 1; background: var(--surface); white-space: nowrap; }
+.tbl tbody tr { transition: background var(--dur) ease; }
 .tbl tbody tr:hover { background: color-mix(in srgb, var(--brand) 6%, transparent); }
-.tbl tr[aria-selected="true"] { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+.tbl tr[aria-selected="true"] { background: color-mix(in srgb, var(--brand) 12%, transparent); box-shadow: inset 2px 0 0 var(--brand); }
+.tbl tbody tr:last-child td { border-bottom: 0; }
+
+/* subtle lift on interactive cards */
+.card-hover { transition: border-color var(--dur) ease, transform var(--dur) ease; }
+.card-hover:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); }
 
 .dropzone { border: 1.5px dashed var(--border); border-radius: .6rem; transition: border-color .15s, background .15s; }
 .dropzone.drag { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 8%, transparent); }

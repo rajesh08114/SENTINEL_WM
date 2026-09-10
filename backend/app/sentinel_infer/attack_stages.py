@@ -100,6 +100,7 @@ class StageAssessment:
     rationale: str
     dominant_family: str = "BENIGN"
     family_transition: Optional[str] = None
+    family_inferred: bool = False
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -178,18 +179,35 @@ def assess_forecast(state_probs: Sequence[float],
                     horizon_k: int,
                     dominant_family_hint: str = "BENIGN",
                     prev_family: Optional[str] = None,
-                    attack_prob: float = 0.0) -> StageAssessment:
+                    attack_prob: float = 0.0,
+                    inferred: bool = False) -> StageAssessment:
     idx = int(max(range(len(state_probs)), key=lambda i: state_probs[i]))
     ps = C.IDX_TO_STATE[idx]
     ratio_proxy = float(attack_prob)
     fam = dominant_family_hint or "BENIGN"
     a = assess_window(ps, fam, prev_family, ratio_proxy)
+    a.family_inferred = bool(inferred and fam != "BENIGN")
 
     if ps in ("ONSET", "ACTIVE", "CONTINUATION") and fam == "BENIGN":
-        a.mitre_tactic = "Unspecified (family unknown at forecast time)"
+        # no label and nothing distinctive in the window features: fall back to a
+        # tactic derived from the (reliable) progression state, not "unknown".
+        _PS_TACTIC = {
+            "ONSET": ("Execution / Initial Access", "Exploitation"),
+            "ACTIVE": ("Impact", "Actions on Objectives"),
+            "CONTINUATION": ("Impact / Persistence", "Actions on Objectives"),
+        }
+        a.mitre_tactic, a.kill_chain_phase = _PS_TACTIC[ps]
         a.technique_ids = []
-        a.kill_chain_phase = "Attack (unspecified)"
         a.confidence = "Low"
+        a.rationale = ("attack forecast without a family label; tactic derived "
+                       "from the progression state only. Pass a `family_hint` "
+                       "on upload for precise ATT&CK technique mapping. "
+                       + a.rationale)
+    elif a.family_inferred:
+        # a family was guessed from the window's feature profile
+        a.confidence = _downgrade(a.confidence, 1)
+        a.rationale = (f"family inferred from window feature profile "
+                       f"(no labelled flow): likely {fam}. " + a.rationale)
 
     steps_down = 1 + (max(0, horizon_k - 1) // 3)
     a.confidence = _downgrade(a.confidence, steps_down)

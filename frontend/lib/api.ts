@@ -46,7 +46,22 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, init?: RequestInit, parse?: (d: unknown) => T): Promise<T> {
-  const r = await fetch(apiBase() + path, init);
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 15_000);
+  let r: Response;
+  try {
+    r = await fetch(apiBase() + path, { ...init, signal: ac.signal });
+  } catch (e) {
+    throw new ApiError(
+      (e as Error)?.name === "AbortError"
+        ? `backend timed out (${path})`
+        : `cannot reach backend at ${apiBase()}`,
+      0,
+      e
+    );
+  } finally {
+    clearTimeout(timer);
+  }
   const body = await r.json().catch(() => ({}));
   if (!r.ok) {
     const detail =
@@ -158,11 +173,63 @@ export const api = {
     fd.append("file", file, (file as File).name || "flows.csv");
     if (opts.familyHint) fd.append("family_hint", opts.familyHint);
     fd.append("explain", String(opts.explain ?? true));
-    const r = await fetch(apiBase() + "/forecast/csv", { method: "POST", body: fd });
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 180_000); // 3 min ceiling
+    let r: Response;
+    try {
+      r = await fetch(apiBase() + "/forecast/csv", {
+        method: "POST",
+        body: fd,
+        signal: ac.signal,
+      });
+    } catch (e) {
+      throw new ApiError(
+        (e as Error)?.name === "AbortError"
+          ? "backend did not respond within 3 min"
+          : `cannot reach backend at ${apiBase()} — is it running?`,
+        0,
+        e
+      );
+    } finally {
+      clearTimeout(timer);
+    }
     const body = await r.json().catch(() => ({}));
     if (r.status === 202) return { job: true, job_id: (body as any).job_id };
     if (!r.ok) throw new ApiError(String((body as any).detail || r.status), r.status, body);
     return { job: false, result: zForecast.parse(body) as unknown as ForecastResponse };
+  },
+
+  async forecastPcap(
+    file: File | Blob,
+    opts: { familyHint?: string; explain?: boolean } = {}
+  ): Promise<ForecastResponse> {
+    const fd = new FormData();
+    fd.append("file", file, (file as File).name || "capture.pcap");
+    if (opts.familyHint) fd.append("family_hint", opts.familyHint);
+    fd.append("explain", String(opts.explain ?? true));
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 240_000); // pcap parsing can be slow
+    let r: Response;
+    try {
+      r = await fetch(apiBase() + "/forecast/pcap", {
+        method: "POST",
+        body: fd,
+        signal: ac.signal,
+      });
+    } catch (e) {
+      throw new ApiError(
+        (e as Error)?.name === "AbortError"
+          ? "backend did not finish parsing the pcap within 4 min"
+          : `cannot reach backend at ${apiBase()} — is it running?`,
+        0,
+        e
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new ApiError(String((body as any).detail || r.status), r.status, body);
+    return zForecast.parse(body) as unknown as ForecastResponse;
   },
 
   listLiveSessions: () =>

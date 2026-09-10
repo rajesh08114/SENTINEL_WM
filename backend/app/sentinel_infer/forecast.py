@@ -20,6 +20,7 @@ import torch
 
 from . import attack_stages as A
 from . import explain as _explain
+from . import family_infer as _family
 from . import preprocess
 from . import schema as C
 from . import windows as _windows
@@ -124,6 +125,9 @@ def simulate_anchor(model, x: np.ndarray, dt: np.ndarray, ckpt: dict,
     thr = ckpt.get("alert_threshold", 0.7)
     meta = meta or {}
     fam_hint = meta.get("dominant_family_hint", "BENIGN")
+    fam_inferred = bool(meta.get("family_inferred", False))
+    poss_fam = meta.get("possible_family")
+    poss_conf = meta.get("possible_family_conf")
     prev_fam = meta.get("prev_family")
 
     horizon, first_alert_k = [], None
@@ -132,7 +136,12 @@ def simulate_anchor(model, x: np.ndarray, dt: np.ndarray, ckpt: dict,
         state_probs = roll["prog_prob"][0, k].tolist()
         stage = A.assess_forecast(state_probs, horizon_k=k + 1,
                                   dominant_family_hint=fam_hint,
-                                  prev_family=prev_fam, attack_prob=p)
+                                  prev_family=prev_fam, attack_prob=p,
+                                  inferred=fam_inferred)
+        attck = stage.to_dict()
+        if poss_fam and not fam_inferred and fam_hint == "BENIGN":
+            attck["possible_family"] = poss_fam        # advisory only, de-emphasise in UI
+            attck["possible_family_confidence"] = poss_conf
         if first_alert_k is None and p >= thr:
             first_alert_k = k + 1
         horizon.append(dict(
@@ -143,7 +152,7 @@ def simulate_anchor(model, x: np.ndarray, dt: np.ndarray, ckpt: dict,
             progression_state=C.IDX_TO_STATE[int(roll["prog_state"][0, k])],
             progression_dist={C.IDX_TO_STATE[i]: round(v, 4)
                               for i, v in enumerate(state_probs)},
-            attck=stage.to_dict()))
+            attck=attck))
 
     result = dict(
         meta=meta, alert_threshold=thr,
@@ -257,11 +266,23 @@ class InferenceEngine:
         sw = self.flows_to_windows(df)
         X, DT, meta = self.windows_to_tensors(sw)
         expl = self.explainer if explain else None
+        explicit = bool(family_hint) and family_hint.upper() != "BENIGN"
         anchors = []
         for i, m in enumerate(meta):
+            guess, gconf = _family.infer_family(X[i][-1], self.feat_cols)
+            if explicit:
+                fam, inferred = family_hint, False
+            elif guess != "BENIGN" and gconf == "Medium":
+                # only promote a guess to the primary tactic when it's blatant
+                fam, inferred = guess, True
+            else:
+                fam, inferred = "BENIGN", False       # -> progression-derived tactic
             anchors.append(simulate_anchor(
                 self.model, X[i], DT[i], self.ckpt,
-                meta={"dominant_family_hint": family_hint or "BENIGN",
+                meta={"dominant_family_hint": fam,
+                      "family_inferred": inferred,
+                      "possible_family": None if guess == "BENIGN" else guess,
+                      "possible_family_conf": None if guess == "BENIGN" else gconf,
                       "window_index": m["window_index"],
                       "window_start_epoch": m["window_start_epoch"]},
                 M_samples=self.mc_samples, device=self.device,

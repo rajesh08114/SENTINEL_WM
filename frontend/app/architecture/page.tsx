@@ -1,4 +1,5 @@
 import { Panel } from "@/components/ui/card";
+import { PageHeader } from "@/components/common/PageHeader";
 
 const ENDPOINTS: [string, string, string][] = [
   ["GET", "/health", "liveness + bundle / live / agent detail"],
@@ -18,15 +19,21 @@ const ENDPOINTS: [string, string, string][] = [
 export default function ArchitecturePage() {
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">Interaction architecture</h1>
-      <p className="max-w-3xl text-sm text-muted">
-        Four decoupled parts. <b className="text-ink">research/</b> trains and benchmarks,
-        emitting a portable model bundle. <b className="text-ink">backend/</b> serves that
-        bundle through a stateless FastAPI service (inference code vendored in{" "}
-        <code>app/sentinel_infer/</code> — no research import). <b className="text-ink">frontend/</b>{" "}
-        is this static Next.js console. <b className="text-ink">capture-agent/</b> is a host
-        process that feeds live packets in.
-      </p>
+      <PageHeader
+        eyebrow="Architecture"
+        title="Interaction architecture"
+        lead={
+          <>
+            Four decoupled parts. <b className="text-ink">research/</b> trains and benchmarks,
+            emitting a portable model bundle. <b className="text-ink">backend/</b> serves that
+            bundle through a stateless FastAPI service (inference code vendored in{" "}
+            <code>app/sentinel_infer/</code> — no research import).{" "}
+            <b className="text-ink">frontend/</b> is this static Next.js console.{" "}
+            <b className="text-ink">capture-agent/</b> is a host process that feeds live
+            packets in.
+          </>
+        }
+      />
 
       <Panel title="Repository topology">
         <pre className="mono overflow-x-auto text-xs leading-relaxed text-muted sm:text-[13px]">

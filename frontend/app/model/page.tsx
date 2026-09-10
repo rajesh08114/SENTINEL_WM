@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Panel } from "@/components/ui/card";
+import { PageHeader } from "@/components/common/PageHeader";
 import { KpiTile } from "@/components/panels/KpiTile";
 import { round } from "@/lib/format";
 
@@ -32,13 +33,18 @@ export default function ModelPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">SENTINEL-WM (system) — model card</h1>
-      <p className="max-w-3xl text-sm text-muted">
-        The world model blended (validation-tuned scalar weight) with three decorrelated
-        members. The blend adds P(attack) sharpness only; progression, rollout and ATT&amp;CK
-        mapping always come from the world model. Full derivation in{" "}
-        <code>docs/system_architecture.md</code>.
-      </p>
+      <PageHeader
+        eyebrow="Model Card"
+        title="SENTINEL-WM (system)"
+        lead={
+          <>
+            The world model blended (validation-tuned scalar weight) with three decorrelated
+            members. The blend adds P(attack) sharpness only; progression, rollout and
+            ATT&amp;CK mapping always come from the world model. Full derivation in{" "}
+            <code>docs/system_architecture.md</code>.
+          </>
+        }
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiTile label="History L" value={`${L} windows`} sub={`${L * W} s context`} />

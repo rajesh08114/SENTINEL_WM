@@ -4,7 +4,7 @@ import { test, expect } from "@playwright/test";
 // states). The synthetic-session test needs a backend on :8000 and is skipped
 // when it isn't reachable.
 
-const ROUTES = ["/", "/sources", "/pipeline", "/dashboard", "/live", "/architecture", "/model"];
+const ROUTES = ["/", "/research", "/sources", "/pipeline", "/dashboard", "/live", "/architecture", "/model"];
 
 for (const path of ROUTES) {
   test(`route ${path} renders`, async ({ page }) => {

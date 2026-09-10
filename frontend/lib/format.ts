@@ -1,8 +1,13 @@
 export const pct = (x: number | null | undefined, d = 1) =>
   x == null || Number.isNaN(x) ? "—" : (100 * x).toFixed(d) + "%";
 
-export const num = (x: number | null | undefined) =>
-  x == null ? "—" : new Intl.NumberFormat().format(x);
+// deterministic thousands separator — Intl.NumberFormat() picks up the runtime
+// locale, which differs between the static-export build (Node) and the browser
+// and causes React hydration mismatches.
+export const thousands = (x: number | null | undefined) =>
+  x == null ? "—" : String(Math.trunc(x)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+export const num = thousands;
 
 export const sec = (x: number | null | undefined) => (x == null ? "—" : `${x} s`);
 
