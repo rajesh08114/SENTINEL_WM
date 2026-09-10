@@ -1,0 +1,36 @@
+# SENTINEL-WM inference backend.
+# Build context = repo ROOT (needs research/ and backend/):
+#   docker build -f backend/Dockerfile -t sentinel-wm-backend .
+# The model bundle is NOT baked in - mount it at /models:
+#   docker run -p 8000:8000 -v "$PWD/models:/models:ro" sentinel-wm-backend
+FROM python:3.11-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    SENTINEL_WM_MODEL_DIR=/models \
+    SENTINEL_JOB_DIR=/app/data/jobs \
+    SENTINEL_DEVICE=cpu
+
+WORKDIR /app
+
+# CPU-only torch wheel first (keeps the image ~1 GB smaller than the CUDA build)
+RUN pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.1"
+
+COPY research/ ./research/
+COPY backend/  ./backend/
+
+RUN pip install ./research \
+ && pip install ./backend \
+ && useradd -m -u 10001 sentinel \
+ && mkdir -p /app/data/jobs /models \
+ && chown -R sentinel:sentinel /app
+
+USER sentinel
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", \
+     "--app-dir", "backend"]

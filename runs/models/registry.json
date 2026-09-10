@@ -3,7 +3,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "window",
-    "path": "research\\models\\classical\\extra_trees.pkl",
+    "path": "runs\\models\\classical\\extra_trees.pkl",
     "input": {
       "tensor": "window",
       "K": 6
@@ -19,7 +19,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "window",
-    "path": "research\\models\\classical\\gaussian_nb.pkl",
+    "path": "runs\\models\\classical\\gaussian_nb.pkl",
     "input": {
       "tensor": "window",
       "K": 6
@@ -35,7 +35,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "window",
-    "path": "research\\models\\classical\\hist_gradient_boosting.pkl",
+    "path": "runs\\models\\classical\\hist_gradient_boosting.pkl",
     "input": {
       "tensor": "window",
       "K": 6
@@ -51,7 +51,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "sequence",
-    "path": "research\\models\\classical\\hist_gradient_boosting__seq.pkl",
+    "path": "runs\\models\\classical\\hist_gradient_boosting__seq.pkl",
     "input": {
       "tensor": "sequence_flat",
       "K": 6
@@ -67,7 +67,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "window",
-    "path": "research\\models\\classical\\knn.pkl",
+    "path": "runs\\models\\classical\\knn.pkl",
     "input": {
       "tensor": "window",
       "K": 6
@@ -83,7 +83,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "window",
-    "path": "research\\models\\classical\\linear_svc.pkl",
+    "path": "runs\\models\\classical\\linear_svc.pkl",
     "input": {
       "tensor": "window",
       "K": 6
@@ -99,7 +99,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "window",
-    "path": "research\\models\\classical\\logistic_regression.pkl",
+    "path": "runs\\models\\classical\\logistic_regression.pkl",
     "input": {
       "tensor": "window",
       "K": 6
@@ -115,7 +115,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "sequence",
-    "path": "research\\models\\classical\\logistic_regression__seq.pkl",
+    "path": "runs\\models\\classical\\logistic_regression__seq.pkl",
     "input": {
       "tensor": "sequence_flat",
       "K": 6
@@ -131,7 +131,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "window",
-    "path": "research\\models\\classical\\mlp_sklearn.pkl",
+    "path": "runs\\models\\classical\\mlp_sklearn.pkl",
     "input": {
       "tensor": "window",
       "K": 6
@@ -147,7 +147,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "sequence",
-    "path": "research\\models\\classical\\mlp_sklearn__seq.pkl",
+    "path": "runs\\models\\classical\\mlp_sklearn__seq.pkl",
     "input": {
       "tensor": "sequence_flat",
       "K": 6
@@ -163,7 +163,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "window",
-    "path": "research\\models\\classical\\random_forest.pkl",
+    "path": "runs\\models\\classical\\random_forest.pkl",
     "input": {
       "tensor": "window",
       "K": 6
@@ -179,7 +179,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "sequence",
-    "path": "research\\models\\classical\\random_forest__seq.pkl",
+    "path": "runs\\models\\classical\\random_forest__seq.pkl",
     "input": {
       "tensor": "sequence_flat",
       "K": 6
@@ -195,7 +195,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "window",
-    "path": "research\\models\\classical\\xgboost.pkl",
+    "path": "runs\\models\\classical\\xgboost.pkl",
     "input": {
       "tensor": "window",
       "K": 6
@@ -211,7 +211,7 @@
     "family": "classical",
     "framework": "sklearn",
     "kind": "sequence",
-    "path": "research\\models\\classical\\xgboost__seq.pkl",
+    "path": "runs\\models\\classical\\xgboost__seq.pkl",
     "input": {
       "tensor": "sequence_flat",
       "K": 6
@@ -227,7 +227,7 @@
     "family": "graph",
     "framework": "torch",
     "kind": "gat",
-    "path": "research\\models\\nn\\gat.pt",
+    "path": "runs\\models\\nn\\gat.pt",
     "input": {
       "tensor": "graph_sequence"
     },
@@ -244,7 +244,7 @@
     "family": "nn",
     "framework": "torch",
     "kind": "gru",
-    "path": "research\\models\\nn\\gru.pt",
+    "path": "runs\\models\\nn\\gru.pt",
     "input": {
       "tensor": "sequence"
     },
@@ -261,7 +261,7 @@
     "family": "nn",
     "framework": "torch",
     "kind": "lstm",
-    "path": "research\\models\\nn\\lstm.pt",
+    "path": "runs\\models\\nn\\lstm.pt",
     "input": {
       "tensor": "sequence"
     },
@@ -278,7 +278,7 @@
     "family": "nn",
     "framework": "torch",
     "kind": "mlp",
-    "path": "research\\models\\nn\\mlp.pt",
+    "path": "runs\\models\\nn\\mlp.pt",
     "input": {
       "tensor": "sequence"
     },
@@ -295,7 +295,7 @@
     "family": "nn",
     "framework": "torch",
     "kind": "tcn",
-    "path": "research\\models\\nn\\tcn.pt",
+    "path": "runs\\models\\nn\\tcn.pt",
     "input": {
       "tensor": "sequence"
     },

@@ -32,7 +32,7 @@ from sentinel_wm import config as C
 
 def _models_dir() -> str:
     # a deploy bundle (MODEL_DIR/models/) wins over the research tree (runs/models/)
-    b = os.path.join(C.MODEL_DIR, "models")
+    b = os.path.join(C.model_dir(), "models")
     if os.path.isdir(b):
         return b
     return os.path.join(C.research_dir(), "models")
@@ -147,7 +147,7 @@ def build_registry(verbose: bool = True) -> Dict:
     classical_dir, nn_dir = _classical_dir(), _nn_dir()
     registry_json = _registry_json()
     # store model paths relative to whichever tree they live in (bundle or research)
-    _base = C.MODEL_DIR if os.path.isdir(os.path.join(C.MODEL_DIR, "models")) else C.ROOT
+    _base = C.model_dir() if os.path.isdir(os.path.join(C.model_dir(), "models")) else C.ROOT
     wm_pt = C.bundled("world_model.pt") or C.WORLD_MODEL_PT
 
     for meta_path in sorted(glob.glob(os.path.join(classical_dir, "*.meta.json"))):
@@ -251,7 +251,7 @@ def load_predictor(name: str, device: str = "cpu"):
     r = reg[name]
     # `path` is stored relative to C.ROOT (research tree) or to MODEL_DIR (bundle);
     # take whichever base actually has the file.
-    path = next((c for c in (os.path.join(C.MODEL_DIR, r["path"]),
+    path = next((c for c in (os.path.join(C.model_dir(), r["path"]),
                              os.path.join(C.ROOT, r["path"]))
                  if os.path.exists(c)), os.path.join(C.ROOT, r["path"]))
     if r["framework"] == "sklearn":

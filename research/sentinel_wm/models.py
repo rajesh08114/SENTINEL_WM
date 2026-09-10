@@ -317,7 +317,7 @@ def wm_predict(model: "SentinelWorldModel", X, dt, device="cpu",
             if os.path.isabs(sp):
                 p = sp
             else:                                   # try the model bundle, then ROOT
-                p = next((c for c in (os.path.join(C.MODEL_DIR, sp),
+                p = next((c for c in (os.path.join(C.model_dir(), sp),
                                       os.path.join(C.ROOT, sp))
                           if os.path.exists(c)), os.path.join(C.ROOT, sp))
             sd = torch.load(p, map_location=device, weights_only=False)

@@ -59,11 +59,17 @@ os.makedirs(ARTIFACTS, exist_ok=True)
 MODEL_DIR = os.environ.get("SENTINEL_WM_MODEL_DIR") or os.path.join(ROOT, "models")
 
 
+def model_dir() -> str:
+    """Live value of the deploy-bundle dir (re-reads SENTINEL_WM_MODEL_DIR each
+    call, so a test / server that sets it after import still takes effect)."""
+    return os.environ.get("SENTINEL_WM_MODEL_DIR") or os.path.join(ROOT, "models")
+
+
 def bundled(*rel: str):
-    """Return `MODEL_DIR/<rel...>` if a deploy bundle is present and holds that
+    """Return `<model_dir>/<rel...>` if a deploy bundle is present and holds that
     file, else None. Readers do `path = C.bundled('world_model.pt') or
     C.WORLD_MODEL_PT` so the serving backend never touches the research tree."""
-    cand = os.path.join(MODEL_DIR, *rel)
+    cand = os.path.join(model_dir(), *rel)
     return cand if os.path.exists(cand) else None
 
 # Raw labelled unified-flow CSVs produced by extraction/label_mapping.ipynb.
