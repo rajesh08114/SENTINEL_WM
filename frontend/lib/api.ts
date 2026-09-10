@@ -199,6 +199,39 @@ export const api = {
     return { job: false, result: zForecast.parse(body) as unknown as ForecastResponse };
   },
 
+  async forecastPcap(
+    file: File | Blob,
+    opts: { familyHint?: string; explain?: boolean } = {}
+  ): Promise<ForecastResponse> {
+    const fd = new FormData();
+    fd.append("file", file, (file as File).name || "capture.pcap");
+    if (opts.familyHint) fd.append("family_hint", opts.familyHint);
+    fd.append("explain", String(opts.explain ?? true));
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 240_000); // pcap parsing can be slow
+    let r: Response;
+    try {
+      r = await fetch(apiBase() + "/forecast/pcap", {
+        method: "POST",
+        body: fd,
+        signal: ac.signal,
+      });
+    } catch (e) {
+      throw new ApiError(
+        (e as Error)?.name === "AbortError"
+          ? "backend did not finish parsing the pcap within 4 min"
+          : `cannot reach backend at ${apiBase()} — is it running?`,
+        0,
+        e
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) throw new ApiError(String((body as any).detail || r.status), r.status, body);
+    return zForecast.parse(body) as unknown as ForecastResponse;
+  },
+
   listLiveSessions: () =>
     req<LiveSessionInfo[]>("/live/sessions", undefined, (d) =>
       z.array(zLive).parse(d) as unknown as LiveSessionInfo[]

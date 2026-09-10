@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # "system" (force blend) | "world_model" (world model only)
     serve_mode: str = "auto"
     max_sync_flows: int = 20_000
+    pcap_max_bytes: int = 60_000_000        # ~60 MB upload ceiling for /forecast/pcap
     mc_samples: int = 50
     workers: int = 2
     job_dir: Path = _HERE / "data" / "jobs"
