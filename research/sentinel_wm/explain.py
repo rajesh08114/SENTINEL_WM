@@ -66,11 +66,15 @@ def gradient_x_input(model, x: np.ndarray, dt: np.ndarray,
     xb = torch.tensor(np.asarray(x[None]), dtype=torch.float32, device=device,
                       requires_grad=True)
     dtb = torch.as_tensor(dt[None], dtype=torch.float32, device=device)
-    out = model(xb, dtb)
-    logits = out["attack_logits_k"][0]                    # [K]
-    score = logits.max() if horizon_reduce == "max" else logits.mean()
-    model.zero_grad()
-    score.backward()
+    # cuDNN's fused RNN backward is only allowed while the module is in training
+    # mode; the model is eval() here for deterministic attributions, so run this
+    # one grad pass through the native (non-cuDNN) RNN kernel instead.
+    with torch.backends.cudnn.flags(enabled=False):
+        out = model(xb, dtb)
+        logits = out["attack_logits_k"][0]                # [K]
+        score = logits.max() if horizon_reduce == "max" else logits.mean()
+        model.zero_grad()
+        score.backward()
     g = xb.grad[0].detach().cpu().numpy()                 # [L, F]
     sal = np.abs(g) * np.abs(x)                           # [L, F]
     feat_imp = sal.sum(0)
