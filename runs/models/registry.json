@@ -91,7 +91,7 @@
     "threshold": 0.65,
     "metrics": {
       "f1": 0.22222222222222224,
-      "auroc": 0.8296873468587671,
+      "auroc": 0.8290698814074292,
       "mean_lead_time_s": 0.0
     }
   },
@@ -282,13 +282,13 @@
     "input": {
       "tensor": "sequence"
     },
-    "threshold": 0.48000000000000004,
+    "threshold": 0.3,
     "params": 519460,
     "metrics": {
-      "f1": 0.7650273224043717,
-      "auroc": 0.9910124473194158,
+      "f1": 0.7821229050279329,
+      "auroc": 0.9887239047339017,
       "mean_lead_time_s": 0.0,
-      "progression_acc": 0.986659422914403
+      "progression_acc": 0.9875045273451648
     }
   },
   "tcn": {
@@ -299,13 +299,13 @@
     "input": {
       "tensor": "sequence"
     },
-    "threshold": 0.05,
+    "threshold": 0.04,
     "params": 172644,
     "metrics": {
-      "f1": 0.8397790055248618,
-      "auroc": 0.9996618641576007,
+      "f1": 0.7653061224489796,
+      "auroc": 0.9990296971478976,
       "mean_lead_time_s": 0.0,
-      "progression_acc": 0.9945671858022456
+      "progression_acc": 0.9901605698418448
     }
   },
   "SENTINEL-WM": {
@@ -318,7 +318,7 @@
       "L": 12,
       "K": 6
     },
-    "threshold": 0.11,
+    "threshold": 0.18000000000000002,
     "snapshots": [
       "artifacts\\world_model_snapshots\\snap_ep060.pt",
       "artifacts\\world_model_snapshots\\snap_ep090.pt",
@@ -326,8 +326,8 @@
     ],
     "self_ensemble": true,
     "metrics": {
-      "f1": 0.5692883895131086,
-      "auroc": 0.9978682740370479
+      "f1": 0.5779467680608364,
+      "auroc": 0.9980397922179751
     }
   },
   "SENTINEL-WM-system": {
@@ -336,10 +336,9 @@
     "kind": "WM self-ensemble + [xgboost__seq, random_forest__seq, hist_gradient_boosting__seq, gat] (val-tuned blend)",
     "components": [
       "SENTINEL-WM",
-      "xgboost__seq",
-      "random_forest__seq",
-      "hist_gradient_boosting__seq",
-      "gat"
+      "tcn",
+      "lstm",
+      "gru"
     ],
     "note": "composed at inference by benchmark._score_world_model / registry.load_system_predictor"
   }

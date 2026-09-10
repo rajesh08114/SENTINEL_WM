@@ -5,78 +5,78 @@
     "top_features": [
       {
         "feature": "payload_kurt_mean",
-        "mean_abs_shap": 0.0685928423227413
+        "mean_abs_shap": 0.059924882742733866
       },
       {
-        "feature": "ttl_var",
-        "mean_abs_shap": 0.04624262190945897
-      },
-      {
-        "feature": "d_unique_dst_ports",
-        "mean_abs_shap": 0.0353951947321
-      },
-      {
-        "feature": "rst_rate",
-        "mean_abs_shap": 0.0337039077529666
-      },
-      {
-        "feature": "srcip_entropy",
-        "mean_abs_shap": 0.030445053490144234
+        "feature": "window_index_in_day",
+        "mean_abs_shap": 0.04689008230724702
       },
       {
         "feature": "dstport_entropy",
-        "mean_abs_shap": 0.028940034507245666
+        "mean_abs_shap": 0.03913446492281689
       },
       {
-        "feature": "burstiness",
-        "mean_abs_shap": 0.02861192223390354
-      },
-      {
-        "feature": "flow_count",
-        "mean_abs_shap": 0.026620030678236997
-      },
-      {
-        "feature": "fan_in",
-        "mean_abs_shap": 0.02651815130946466
-      },
-      {
-        "feature": "flowsize_entropy",
-        "mean_abs_shap": 0.025746136823354047
-      },
-      {
-        "feature": "payload_nonzero_ratio",
-        "mean_abs_shap": 0.025606181911467466
-      },
-      {
-        "feature": "dstip_entropy",
-        "mean_abs_shap": 0.023996938312039088
-      },
-      {
-        "feature": "failed_conn_ratio",
-        "mean_abs_shap": 0.023882802277587222
-      },
-      {
-        "feature": "fin_rate",
-        "mean_abs_shap": 0.023812616584549414
+        "feature": "payload_var_mean",
+        "mean_abs_shap": 0.034313587411075964
       },
       {
         "feature": "tcp_window_mean",
-        "mean_abs_shap": 0.022935905940128058
+        "mean_abs_shap": 0.03415648882638869
+      },
+      {
+        "feature": "d_packet_rate",
+        "mean_abs_shap": 0.0307365927246632
+      },
+      {
+        "feature": "iat_std",
+        "mean_abs_shap": 0.030385966499097767
+      },
+      {
+        "feature": "packet_rate",
+        "mean_abs_shap": 0.029660312626453876
+      },
+      {
+        "feature": "d_unique_dst",
+        "mean_abs_shap": 0.029541760000402855
+      },
+      {
+        "feature": "syn_rate",
+        "mean_abs_shap": 0.02944310264936368
+      },
+      {
+        "feature": "fwd_bwd_ratio",
+        "mean_abs_shap": 0.02731398676815651
+      },
+      {
+        "feature": "flow_duration_mean",
+        "mean_abs_shap": 0.02561896578238211
+      },
+      {
+        "feature": "failed_conn_ratio",
+        "mean_abs_shap": 0.02517535783601127
+      },
+      {
+        "feature": "ttl_mean",
+        "mean_abs_shap": 0.023906074848515466
+      },
+      {
+        "feature": "burstiness",
+        "mean_abs_shap": 0.023464517935405233
       }
     ],
     "per_window": [
-      0.08334177714098494,
-      0.0714538306815096,
-      0.08010453862746131,
-      0.0797142668393168,
-      0.10514207073409772,
-      0.07640804540117996,
-      0.06134806863459569,
-      0.12200512617614274,
-      0.05513141163833109,
-      0.08810537885218278,
-      0.0678066655076788,
-      0.10943881976269756
+      0.09792057993471653,
+      0.06156983563814525,
+      0.07779597629793768,
+      0.070961667654997,
+      0.11085120186147511,
+      0.10072245040435006,
+      0.08350777886231878,
+      0.06733906035914775,
+      0.08703597339552406,
+      0.0689866573810549,
+      0.06257350853343968,
+      0.11073530966983469
     ]
   },
   "baseline_lr_shap": {
@@ -153,95 +153,95 @@
     "top_features": [
       {
         "feature": "packet_count",
-        "importance": 0.499999999977534
+        "importance": 0.4999999999745604
       },
       {
         "feature": "flow_count",
-        "importance": 0.49999999997752453
+        "importance": 0.4999999999745445
       }
     ]
   },
   "example_anchor": {
-    "window_index": 570,
+    "window_index": 662,
     "per_window": [
-      0.028469987213611603,
-      0.022564956918358803,
-      0.06860663741827011,
-      0.13010889291763306,
-      0.1172083392739296,
-      0.20533838868141174,
-      0.11321734637022018,
-      0.029329577460885048,
-      0.07955876737833023,
-      0.040428657084703445,
-      0.04888272285461426,
-      0.11628574132919312
+      0.08062225580215454,
+      0.09986189007759094,
+      0.09631700813770294,
+      0.054827023297548294,
+      0.0575617253780365,
+      0.07006713002920151,
+      0.07045784592628479,
+      0.07504415512084961,
+      0.10584497451782227,
+      0.04537202790379524,
+      0.06801073253154755,
+      0.17601315677165985
     ],
     "top_features": [
       {
-        "feature": "frag_present_ratio",
-        "importance": 0.08108353614807129,
+        "feature": "payload_var_mean",
+        "importance": 0.09853935986757278,
         "signed": -1.0
       },
       {
-        "feature": "ttl_mean",
-        "importance": 0.06559165567159653,
+        "feature": "ttl_var",
+        "importance": 0.05412006750702858,
         "signed": -1.0
       },
       {
-        "feature": "flowsize_entropy",
-        "importance": 0.03713987395167351,
-        "signed": -1.0
-      },
-      {
-        "feature": "tcp_ratio",
-        "importance": 0.036614853888750076,
+        "feature": "dstport_entropy",
+        "importance": 0.053097646683454514,
         "signed": 1.0
       },
       {
         "feature": "payload_kurt_mean",
-        "importance": 0.035731617361307144,
+        "importance": 0.04657385125756264,
+        "signed": 1.0
+      },
+      {
+        "feature": "ttl_mean",
+        "importance": 0.04048117622733116,
+        "signed": -1.0
+      },
+      {
+        "feature": "d_unique_dst",
+        "importance": 0.037994254380464554,
+        "signed": -1.0
+      },
+      {
+        "feature": "frag_present_ratio",
+        "importance": 0.035163573920726776,
         "signed": 1.0
       },
       {
         "feature": "burstiness",
-        "importance": 0.03390573337674141,
-        "signed": -1.0
+        "importance": 0.03040512651205063,
+        "signed": 1.0
       },
       {
         "feature": "port_scan_max_run",
-        "importance": 0.033607762306928635,
+        "importance": 0.03023681789636612,
         "signed": -1.0
       },
       {
-        "feature": "d_syn_rate",
-        "importance": 0.031475652009248734,
-        "signed": -1.0
-      },
-      {
-        "feature": "d_fan_out",
-        "importance": 0.030113056302070618,
-        "signed": -1.0
-      },
-      {
-        "feature": "udp_ratio",
-        "importance": 0.028513643890619278,
-        "signed": -1.0
+        "feature": "payload_skew_mean",
+        "importance": 0.02793879434466362,
+        "signed": 1.0
       }
     ],
     "attention": [
-      0.18743275105953217,
-      0.08061183989048004,
-      0.07039167732000351,
-      0.13120275735855103,
-      0.11665395647287369,
-      0.10735034942626953,
-      0.10613300651311874,
-      0.06658566743135452,
-      0.07263120263814926,
-      0.023265628144145012,
-      0.02582540549337864,
-      0.011915784329175949
+      0.09981101751327515,
+      0.09837684780359268,
+      0.0955972895026207,
+      0.08223945647478104,
+      0.08478859066963196,
+      0.07763560861349106,
+      0.07608216255903244,
+      0.07975996285676956,
+      0.07461670786142349,
+      0.08115611225366592,
+      0.07549750059843063,
+      0.07443861663341522
     ]
   }
 }

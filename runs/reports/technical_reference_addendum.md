@@ -1,6 +1,6 @@
 # technical_reference.md — live-numbers addendum
 
-_Generated 2026-09-10 08:05 by `sentinel_wm.research`._
+_Generated 2026-09-10 10:48 by `sentinel_wm.research`._
 
 | key | value |
 |---|---|
@@ -15,7 +15,7 @@ _Generated 2026-09-10 08:05 by `sentinel_wm.research`._
 | state windows | 14644 |
 | sequences | 14197 |
 | world-model params | 532042 |
-| world-model epochs run | 122 |
-| split train | 8894 windows, 10.9% attack |
-| split val | 2875 windows, 9.5% attack |
-| split test | 2875 windows, 11.5% attack |
+| world-model epochs run | 136 |
+| split train | 8489 windows, 9.0% attack |
+| split val | 2987 windows, 15.4% attack |
+| split test | 3168 windows, 11.1% attack |

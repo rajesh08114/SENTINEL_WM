@@ -1,12 +1,12 @@
 model,family,windows,positives,threshold,f1,f1_best,precision,recall,fpr,auroc,pr_auc,skipped
-tcn,Bot,4,4,,,,,,,,,True
-tcn,DDoS,2639,12,0.05,0.4615,1.0,0.3,1.0,0.0107,1.0,1.0,False
-tcn,DoS Hulk,4,4,,,,,,,,,True
-tcn,FTP-Patator,2666,40,0.05,0.7477,0.9383,0.597,1.0,0.0103,0.9995,0.975,False
-tcn,Heartbleed,11,0,,,,,,,,,True
-tcn,Infiltration,47,0,,,,,,,,,True
-tcn,SSH-Patator,2642,16,0.05,0.5424,1.0,0.3721,1.0,0.0103,1.0,1.0,False
-tcn,BENIGN,2626,0,0.05,0.0,0.0,0.0,0.0,0.0103,0,0,False
+SENTINEL-WM (system),Bot,4,4,,,,,,,,,True
+SENTINEL-WM (system),DDoS,2639,12,0.05,0.169,1.0,0.0923,1.0,0.0449,1.0,1.0,False
+SENTINEL-WM (system),DoS Hulk,4,4,,,,,,,,,True
+SENTINEL-WM (system),FTP-Patator,2666,40,0.05,0.4061,0.9268,0.2548,1.0,0.0446,0.9996,0.9785,False
+SENTINEL-WM (system),Heartbleed,11,0,,,,,,,,,True
+SENTINEL-WM (system),Infiltration,47,0,,,,,,,,,True
+SENTINEL-WM (system),SSH-Patator,2642,16,0.05,0.2148,0.9697,0.1203,1.0,0.0446,1.0,0.9924,False
+SENTINEL-WM (system),BENIGN,2626,0,0.05,0.0,0.0,0.0,0.0,0.0446,0,0,False
 persistence,Bot,4,4,,,,,,,,,True
 persistence,DDoS,2639,12,0.5,0.96,0.96,0.9231,1.0,0.0004,0.9998,0.9231,False
 persistence,DoS Hulk,4,4,,,,,,,,,True
@@ -23,6 +23,14 @@ lstm,Heartbleed,11,0,,,,,,,,,True
 lstm,Infiltration,47,0,,,,,,,,,True
 lstm,SSH-Patator,2642,16,0.03,0.5,0.9677,0.3333,1.0,0.0122,0.9999,0.9875,False
 lstm,BENIGN,2626,0,0.03,0.0,0.0,0.0,0.0,0.0122,0,0,False
+tcn,Bot,4,4,,,,,,,,,True
+tcn,DDoS,2639,12,0.04,0.381,1.0,0.2353,1.0,0.0148,1.0,1.0,False
+tcn,DoS Hulk,4,4,,,,,,,,,True
+tcn,FTP-Patator,2666,40,0.04,0.6667,0.8462,0.5065,0.975,0.0145,0.9984,0.9249,False
+tcn,Heartbleed,11,0,,,,,,,,,True
+tcn,Infiltration,47,0,,,,,,,,,True
+tcn,SSH-Patator,2642,16,0.04,0.4571,1.0,0.2963,1.0,0.0145,1.0,1.0,False
+tcn,BENIGN,2626,0,0.04,0.0,0.0,0.0,0.0,0.0145,0,0,False
 gru,Bot,4,4,,,,,,,,,True
 gru,DDoS,2639,12,0.03,0.3478,0.96,0.2105,1.0,0.0171,0.9998,0.9392,False
 gru,DoS Hulk,4,4,,,,,,,,,True
@@ -32,33 +40,25 @@ gru,Infiltration,47,0,,,,,,,,,True
 gru,SSH-Patator,2642,16,0.03,0.4211,0.9032,0.2667,1.0,0.0168,0.9996,0.9312,False
 gru,BENIGN,2626,0,0.03,0.0,0.0,0.0,0.0,0.0168,0,0,False
 SENTINEL-WM,Bot,4,4,,,,,,,,,True
-SENTINEL-WM,DDoS,2639,12,0.11,0.189,1.0,0.1043,1.0,0.0392,1.0,1.0,False
+SENTINEL-WM,DDoS,2639,12,0.18,0.1846,1.0,0.1017,1.0,0.0404,1.0,1.0,False
 SENTINEL-WM,DoS Hulk,4,4,,,,,,,,,True
-SENTINEL-WM,FTP-Patator,2666,40,0.11,0.4396,0.8219,0.2817,1.0,0.0388,0.9966,0.8492,False
+SENTINEL-WM,FTP-Patator,2666,40,0.18,0.4324,0.8462,0.2759,1.0,0.04,0.9974,0.8893,False
 SENTINEL-WM,Heartbleed,11,0,,,,,,,,,True
 SENTINEL-WM,Infiltration,47,0,,,,,,,,,True
-SENTINEL-WM,SSH-Patator,2642,16,0.11,0.2388,1.0,0.1356,1.0,0.0388,1.0,1.0,False
-SENTINEL-WM,BENIGN,2626,0,0.11,0.0,0.0,0.0,0.0,0.0388,0,0,False
+SENTINEL-WM,SSH-Patator,2642,16,0.18,0.2336,1.0,0.1322,1.0,0.04,1.0,1.0,False
+SENTINEL-WM,BENIGN,2626,0,0.18,0.0,0.0,0.0,0.0,0.04,0,0,False
 mlp,Bot,4,4,,,,,,,,,True
-mlp,DDoS,2639,12,0.48,0.4286,0.8571,0.2727,1.0,0.0122,0.9995,0.8701,False
+mlp,DDoS,2639,12,0.3,0.4444,1.0,0.2857,1.0,0.0114,1.0,1.0,False
 mlp,DoS Hulk,4,4,,,,,,,,,True
-mlp,FTP-Patator,2666,40,0.48,0.6604,0.7765,0.5303,0.875,0.0118,0.9845,0.782,False
+mlp,FTP-Patator,2666,40,0.3,0.6731,0.7442,0.5469,0.875,0.011,0.9806,0.7801,False
 mlp,Heartbleed,11,0,,,,,,,,,True
 mlp,Infiltration,47,0,,,,,,,,,True
-mlp,SSH-Patator,2642,16,0.48,0.4839,0.8966,0.3261,0.9375,0.0118,0.9987,0.9289,False
-mlp,BENIGN,2626,0,0.48,0.0,0.0,0.0,0.0,0.0118,0,0,False
-SENTINEL-WM (system),Bot,4,4,,,,,,,,,True
-SENTINEL-WM (system),DDoS,2639,12,0.16,0.16,1.0,0.087,1.0,0.048,1.0,1.0,False
-SENTINEL-WM (system),DoS Hulk,4,4,,,,,,,,,True
-SENTINEL-WM (system),FTP-Patator,2666,40,0.16,0.3902,0.7733,0.2424,1.0,0.0476,0.9958,0.8184,False
-SENTINEL-WM (system),Heartbleed,11,0,,,,,,,,,True
-SENTINEL-WM (system),Infiltration,47,0,,,,,,,,,True
-SENTINEL-WM (system),SSH-Patator,2642,16,0.16,0.2038,0.8421,0.1135,1.0,0.0476,0.9991,0.8452,False
-SENTINEL-WM (system),BENIGN,2626,0,0.16,0.0,0.0,0.0,0.0,0.0476,0,0,False
+mlp,SSH-Patator,2642,16,0.3,0.5,0.8571,0.3409,0.9375,0.011,0.9981,0.8874,False
+mlp,BENIGN,2626,0,0.3,0.0,0.0,0.0,0.0,0.011,0,0,False
 gat,Bot,4,4,,,,,,,,,True
 gat,DDoS,2639,12,0.39,0.4138,0.9231,0.2609,1.0,0.0129,0.9996,0.8991,False
 gat,DoS Hulk,4,4,,,,,,,,,True
-gat,FTP-Patator,2666,40,0.39,0.4948,0.5542,0.4211,0.6,0.0126,0.9668,0.4126,False
+gat,FTP-Patator,2666,40,0.39,0.4948,0.5542,0.4211,0.6,0.0126,0.9667,0.4125,False
 gat,Heartbleed,11,0,,,,,,,,,True
 gat,Infiltration,47,0,,,,,,,,,True
 gat,SSH-Patator,2642,16,0.39,0.339,0.3571,0.2326,0.625,0.0126,0.9742,0.2077,False
@@ -128,12 +128,12 @@ logistic_regression__seq,Infiltration,47,0,,,,,,,,,True
 logistic_regression__seq,SSH-Patator,2642,16,0.5,0.1714,0.234,0.0943,0.9375,0.0548,0.9696,0.0942,False
 logistic_regression__seq,BENIGN,2626,0,0.5,0.0,0.0,0.0,0.0,0.0548,0,0,False
 linear_svc,Bot,4,4,,,,,,,,,True
-linear_svc,DDoS,2639,12,0.65,0.2963,0.75,0.1739,1.0,0.0217,0.9972,0.4332,False
+linear_svc,DDoS,2639,12,0.65,0.2963,0.75,0.1739,1.0,0.0217,0.9974,0.4443,False
 linear_svc,DoS Hulk,4,4,,,,,,,,,True
-linear_svc,FTP-Patator,2666,40,0.65,0.06,0.1371,0.05,0.075,0.0217,0.8282,0.0592,False
+linear_svc,FTP-Patator,2666,40,0.65,0.06,0.1392,0.05,0.075,0.0217,0.8271,0.0585,False
 linear_svc,Heartbleed,11,0,,,,,,,,,True
 linear_svc,Infiltration,47,0,,,,,,,,,True
-linear_svc,SSH-Patator,2642,16,0.65,0.0,0.0824,0.0,0.0,0.0217,0.8574,0.0267,False
+linear_svc,SSH-Patator,2642,16,0.65,0.0,0.0816,0.0,0.0,0.0217,0.8571,0.0266,False
 linear_svc,BENIGN,2626,0,0.65,0.0,0.0,0.0,0.0,0.0217,0,0,False
 xgboost,Bot,4,4,,,,,,,,,True
 xgboost,DDoS,2639,12,0.5,0.0091,0.8696,0.0045,1.0,1.0,0.9997,0.9454,False

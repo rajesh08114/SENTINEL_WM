@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-10T09:15:48",
+  "timestamp": "2026-09-10T10:30:46",
   "raw_csvs": [
     "unified_AllDays_labeled.csv"
   ],
@@ -102,19 +102,19 @@
     "ssl_epochs": 40,
     "distill": true,
     "distill_teachers": [
+      "mlp_sklearn__seq",
       "xgboost__seq",
-      "random_forest__seq",
-      "hist_gradient_boosting__seq"
+      "logistic_regression__seq"
     ],
-    "w_distill": 1.0,
+    "w_distill": 0.5,
     "snapshot_ensemble": true,
     "self_ensemble": true,
+    "self_ensemble_direct_w": 0.85,
     "system_blend_teachers": true,
     "system_members": [
-      "xgboost__seq",
-      "random_forest__seq",
-      "hist_gradient_boosting__seq",
-      "gat"
+      "tcn",
+      "lstm",
+      "gru"
     ],
     "device": "auto",
     "mc_samples": 50,
@@ -124,12 +124,12 @@
   "args": {
     "step": "all",
     "quick": false,
-    "device": "cuda",
+    "device": null,
     "wm_epochs": 40,
     "nn_epochs": 50,
     "gat_epochs": 50,
     "skip": [],
     "split": null,
-    "outdir": "research"
+    "outdir": "runs"
   }
 }

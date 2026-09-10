@@ -3,12 +3,12 @@
   "family": "nn",
   "kind": "mlp",
   "params": 519460,
-  "threshold": 0.48000000000000004,
+  "threshold": 0.3,
   "epochs_run": 50,
   "metrics": {
-    "f1": 0.7650273224043717,
-    "auroc": 0.9910124473194158,
+    "f1": 0.7821229050279329,
+    "auroc": 0.9887239047339017,
     "mean_lead_time_s": 0.0,
-    "progression_acc": 0.986659422914403
+    "progression_acc": 0.9875045273451648
   }
 }
