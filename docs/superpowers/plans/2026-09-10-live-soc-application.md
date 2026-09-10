@@ -52,10 +52,10 @@ Playwright.
 
 **Interfaces produced:** the four settings fields; the three exception classes.
 
-- [ ] Add settings fields with defaults + env aliases; confirm `get_settings()` still
+- [x] Add settings fields with defaults + env aliases; confirm `get_settings()` still
       imports (`python -c "from app.settings import get_settings; get_settings()"`).
-- [ ] Create the package + `errors.py`.
-- [ ] Commit: `feat(live): settings + errors scaffold`.
+- [x] Create the package + `errors.py`.
+- [x] Commit: `feat(live): settings + errors scaffold`.
 
 ### Task 1.2 — `synth/scenarios.py` (pure generator) + tests
 
@@ -80,22 +80,22 @@ Playwright.
   `pkt_len_mean` + `ttl_mean`.
 - `def phase_at(cfg, frac:float) -> str`.
 
-- [ ] **Test first** (`test_synth.py`): for each name in `SCENARIOS` —
+- [x] **Test first** (`test_synth.py`): for each name in `SCENARIOS` —
       `rows = emit(0, 10, build_config(name, seed=1), Random(1))`;
       assert every row has all `REQUIRED` keys (import the list from
       `app.sentinel_infer.forecast`); assert `10*rate*0.8 <= len(rows) <= 10*rate*1.2`;
       assert `flow_start_epoch` values sorted and within `[0,10)`.
-- [ ] **Test**: non-benign scenarios — attack-family fraction over `emit(0, duration)`
+- [x] **Test**: non-benign scenarios — attack-family fraction over `emit(0, duration)`
       is non-decreasing across three equal time thirds.
-- [ ] **Test**: `emit` with the same seed twice → identical rows (`==`).
-- [ ] **Test**: `build_config("portscan", rate=99999).rate == settings.synth_max_rate`;
+- [x] **Test**: `emit` with the same seed twice → identical rows (`==`).
+- [x] **Test**: `build_config("portscan", rate=99999).rate == settings.synth_max_rate`;
       `build_config("nope")` raises `KeyError`.
-- [ ] Run: `pytest backend/tests/test_synth.py -v` → all fail (module missing).
-- [ ] Implement `scenarios.py`: benign generator (random 5-tuples from internal→external
+- [x] Run: `pytest backend/tests/test_synth.py -v` → all fail (module missing).
+- [x] Implement `scenarios.py`: benign generator (random 5-tuples from internal→external
       pools, TCP/UDP mix, realistic small durations/counts), then per-scenario attack
       row builders keyed off `phase_at`. All randomness via the passed `rng`.
-- [ ] Run the file → green.
-- [ ] Commit: `feat(synth): deterministic scenario flow generator`.
+- [x] Run the file → green.
+- [x] Commit: `feat(synth): deterministic scenario flow generator`.
 
 ### Task 1.3 — `live/session.py` (`LiveSession` + `LiveManager`) + tests
 
@@ -125,20 +125,20 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 `{"type":"forecast", **fc}` to subscribers, dropping any that raise; updates
 `stats={flows_in,windows,forecasts,alerts}`; touches `last_activity`.
 
-- [ ] **Test** (`test_live_session.py`, `asyncio_mode=auto` already set): a fake windower
+- [x] **Test** (`test_live_session.py`, `asyncio_mode=auto` already set): a fake windower
       (`add_flows` records count, `poll_ready` returns one canned forecast dict once ≥N
       rows). `s = LiveManager().create("synthetic", {})`; `await s.feed([{...}]*N)`;
       assert `s.stats["forecasts"] == 1` and `len(s.ring) == 1`.
-- [ ] **Test**: a dummy subscriber object with `async send_json` capturing calls;
+- [x] **Test**: a dummy subscriber object with `async send_json` capturing calls;
       `await s.subscribe(sub)` → first two messages are `type=="status"` then the ring
       replay; a subsequent `feed` that produces a forecast → `sub` gets
       `type=="forecast"`.
-- [ ] **Test**: `create` past `live_max_sessions` raises `LiveCapacityError`;
+- [x] **Test**: `create` past `live_max_sessions` raises `LiveCapacityError`;
       `get("bad")` raises `LiveNotFound`; `await remove(id)` then `get` raises.
-- [ ] **Test**: `await s.stop()` sets `state=="stopped"`, calls windower `flush`, sends a
+- [x] **Test**: `await s.stop()` sets `state=="stopped"`, calls windower `flush`, sends a
       final status, and cancels an attached dummy task.
-- [ ] Run → fail; implement `session.py`; run → green.
-- [ ] Commit: `feat(live): LiveSession + LiveManager`.
+- [x] Run → fail; implement `session.py`; run → green.
+- [x] Commit: `feat(live): LiveSession + LiveManager`.
 
 ### Task 1.4 — `live/sources.py` (`SyntheticSource`) + test
 
@@ -158,12 +158,12 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   `async stop()` send the agent `{"cmd":"start"/"stop", ...}`. (Agent wired in Phase 2;
   define the class now, its `start/stop` no-op if `agent is None`.)
 
-- [ ] **Test**: `cfg = build_config("portscan", rate=20, duration_s=1, seed=3)`;
+- [x] **Test**: `cfg = build_config("portscan", rate=20, duration_s=1, seed=3)`;
       `src = SyntheticSource(fake_session, cfg)`; `await asyncio.wait_for(src.run(), 3)`;
       assert `fake_session.fed_rows > 0` and `fake_session.stopped is True`.
-- [ ] **Test**: `request_stop()` mid-run → `run()` returns promptly, session stopped.
-- [ ] Run → fail; implement; run → green.
-- [ ] Commit: `feat(live): SyntheticSource + AgentSource shell`.
+- [x] **Test**: `request_stop()` mid-run → `run()` returns promptly, session stopped.
+- [x] Run → fail; implement; run → green.
+- [x] Commit: `feat(live): SyntheticSource + AgentSource shell`.
 
 ### Task 1.5 — `api/routes_live.py` + wire into `main.py`
 
@@ -186,18 +186,18 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 - `WS /live/sessions/{id}/stream` — `await session.subscribe(ws)`; loop receiving
   (`{"type":"stop"}` → `MANAGER.remove`); on disconnect `unsubscribe`.
 
-- [ ] **Test** (httpx ASGITransport + the `tiny_bundle`/`client` fixtures in
+- [x] **Test** (httpx ASGITransport + the `tiny_bundle`/`client` fixtures in
       `conftest.py`): `POST /live/sessions {"source":"synthetic","scenario":"portscan",
       "rate":20,"duration_s":1,"seed":1}` → 201 with an `id`; `GET /live/sessions` lists
       it; `DELETE` → 204; `GET /live/sessions/{id}` → 404.
-- [ ] **Test**: `POST` with `"scenario":"nope"` → 422; with `"source":"capture"` → 503.
-- [ ] **Test** (WS): connect `/live/sessions/{id}/stream` for a short synthetic session;
+- [x] **Test**: `POST` with `"scenario":"nope"` → 422; with `"source":"capture"` → 503.
+- [x] **Test** (WS): connect `/live/sessions/{id}/stream` for a short synthetic session;
       assert the first frame is `type=="status"` and at least one `type=="forecast"`
       frame arrives within a timeout (bundle produces forecasts on random weights — assert
       on frame *shape*, not values).
-- [ ] Run → fail; implement router + schemas + main wiring; run → green.
-- [ ] Run the whole backend suite: `pytest backend/ -q` → green.
-- [ ] Commit: `feat(api): /live sessions (synthetic source end to end)`.
+- [x] Run → fail; implement router + schemas + main wiring; run → green.
+- [x] Run the whole backend suite: `pytest backend/ -q` → green.
+- [x] Commit: `feat(api): /live sessions (synthetic source end to end)`.
 
 ### Task 1.6 — Manual verification harness
 
@@ -207,9 +207,9 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   print streamed forecast summaries for ~15 s, `DELETE`.
 - Modify: `Makefile` — `synth-demo:` runs it.
 
-- [ ] Implement the script; run against `uvicorn app.main:app` with the real bundle if
+- [x] Implement the script; run against `uvicorn app.main:app` with the real bundle if
       present, else the tiny bundle; confirm forecast frames print.
-- [ ] Commit: `chore(live): synth-demo smoke script`.
+- [x] Commit: `chore(live): synth-demo smoke script`.
 
 ---
 
@@ -226,9 +226,9 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   host-only adapter note, usage.
 - Create: `capture-agent/.gitignore`.
 
-- [ ] Scaffold; `pip install -e ./capture-agent` in a scratch venv or confirm metadata
+- [x] Scaffold; `pip install -e ./capture-agent` in a scratch venv or confirm metadata
       parses (`python -c "import tomllib,sys; tomllib.load(open('capture-agent/pyproject.toml','rb'))"`).
-- [ ] Commit: `feat(agent): capture-agent project skeleton`.
+- [x] Commit: `feat(agent): capture-agent project skeleton`.
 
 ### Task 2.2 — `interfaces.py` + tests
 
@@ -244,10 +244,10 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   descriptions (guard the import; degrade to psutil names).
 - `def to_dicts(ifaces) -> list[dict]`.
 
-- [ ] **Test**: `ifaces = list_interfaces()`; assert `len(ifaces) >= 1`, each is an
+- [x] **Test**: `ifaces = list_interfaces()`; assert `len(ifaces) >= 1`, each is an
       `Interface`, at least one `is_loopback`, `to_dicts` round-trips keys.
-- [ ] Run → fail; implement; run → green.
-- [ ] Commit: `feat(agent): NIC enumeration`.
+- [x] Run → fail; implement; run → green.
+- [x] Commit: `feat(agent): NIC enumeration`.
 
 ### Task 2.3 — `flowmeter.py` + tests (the core new logic)
 
@@ -266,17 +266,17 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
     `flag_true_*` + `Fwd IAT Total` + `Bwd IAT Total` + `pkt_len_mean`.
   - `pending() -> int`.
 
-- [ ] **Test**: build a SYN scan — 20 `IP()/TCP(flags="S", dport=n)` packets, distinct
+- [x] **Test**: build a SYN scan — 20 `IP()/TCP(flags="S", dport=n)` packets, distinct
       dports, one src → `add_packet` each → `harvest(later)` → ≥ ~20 rows, each
       `flag_true_syn == 1`, `Total Backward Packets == 0`, small `Flow Duration`.
-- [ ] **Test**: a full TCP conversation — SYN, SYN-ACK, ACK, 2 data each way, FIN/FIN-ACK
+- [x] **Test**: a full TCP conversation — SYN, SYN-ACK, ACK, 2 data each way, FIN/FIN-ACK
       → exactly **one** row; `Total Fwd Packets`/`Total Backward Packets` match; row
       appears in the `harvest` right after the FIN (closed, not waiting for timeout).
-- [ ] **Test**: idle eviction — one packet at t=0, `harvest(10)` → 0 rows (still
+- [x] **Test**: idle eviction — one packet at t=0, `harvest(10)` → 0 rows (still
       pending), `harvest(20)` → 1 row.
-- [ ] **Test**: UDP flow — `IP()/UDP()` both directions → one row, `Protocol == 17`.
-- [ ] Run → fail; implement; run → green.
-- [ ] Commit: `feat(agent): bidirectional flow meter`.
+- [x] **Test**: UDP flow — `IP()/UDP()` both directions → one row, `Protocol == 17`.
+- [x] Run → fail; implement; run → green.
+- [x] Commit: `feat(agent): bidirectional flow meter`.
 
 ### Task 2.4 — `agent.py` (backend WS client) + `cli.py`
 
@@ -296,13 +296,13 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 - `cli.py`: `typer` app — `run(--backend, --name)`, `interfaces()` (prints a table).
   `if __name__ == "__main__"` + `[project.scripts] sentinel-capture = "sentinel_capture.cli:app"`.
 
-- [ ] **Test**: a fake async context-manager socket yielding a scripted
+- [x] **Test**: a fake async context-manager socket yielding a scripted
       `[hello-ack?, {"cmd":"interfaces"}, {"cmd":"stop"}]`; run `run_agent` with
       `connect=` the fake and `AsyncSniffer` monkey-patched to a no-op; assert the agent
       sent a `hello` with a non-empty `interfaces` list and responded to `interfaces`.
-- [ ] Run → fail; implement `agent.py` + `cli.py`; run → green.
-- [ ] `python -m sentinel_capture.cli interfaces` prints a table locally.
-- [ ] Commit: `feat(agent): backend WS client + CLI`.
+- [x] Run → fail; implement `agent.py` + `cli.py`; run → green.
+- [x] `python -m sentinel_capture.cli interfaces` prints a table locally.
+- [x] Commit: `feat(agent): backend WS client + CLI`.
 
 ### Task 2.5 — Backend `app/agent/` registry + `routes_agent.py`
 
@@ -325,15 +325,15 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   `on_flows`; `interfaces` update; on disconnect `unregister` + stop bound session.
 - `GET /agent/status` → `{"connected":bool,"agents":[snapshot,...]}`.
 
-- [ ] **Test**: connect a test WS client to `/agent`, send `hello` with 1 interface;
+- [x] **Test**: connect a test WS client to `/agent`, send `hello` with 1 interface;
       `GET /agent/status` → `connected true`, agent listed.
-- [ ] **Test**: with that agent connected, `POST /live/sessions {"source":"capture",
+- [x] **Test**: with that agent connected, `POST /live/sessions {"source":"capture",
       "iface":"lo"}` → 201; the agent client receives a `{"cmd":"start","iface":"lo"}`;
       pushing a `{"type":"flows","records":[...12 windows...]}` yields a forecast frame
       on the live WS. `DELETE` → agent gets `{"cmd":"stop"}`.
-- [ ] **Test**: no agent → `POST .../capture` → 503.
-- [ ] Run → fail; implement; run → `pytest backend/ -q` green.
-- [ ] Commit: `feat(agent): backend registry + /agent WS + capture sessions`.
+- [x] **Test**: no agent → `POST .../capture` → 503.
+- [x] Run → fail; implement; run → `pytest backend/ -q` green.
+- [x] Commit: `feat(agent): backend registry + /agent WS + capture sessions`.
 
 ### Task 2.6 — Agent integration check + docs
 
@@ -342,11 +342,11 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   (`cd capture-agent && python -m sentinel_capture.cli run --backend ws://localhost:8000`).
 - Modify: `capture-agent/README.md`, root `README.md` (new §"Live capture agent").
 
-- [ ] Run a real end-to-end locally: `uvicorn app.main:app` + `make capture-agent`,
+- [x] Run a real end-to-end locally: `uvicorn app.main:app` + `make capture-agent`,
       `GET /agent/status` shows NICs; start a capture session on the loopback while
       `ping`ing localhost; confirm forecast frames stream. Record the result in the
       commit message.
-- [ ] Commit: `docs(agent): capture-agent usage + Makefile target`.
+- [x] Commit: `docs(agent): capture-agent usage + Makefile target`.
 
 ---
 
@@ -366,10 +366,10 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   input, select, tabs, table, badge, dialog, tooltip, skeleton, sonner/toast).
 - Create: `frontend/lib/utils.ts` (`cn`).
 
-- [ ] `npm install`; `npm run build` (static export of the placeholder) succeeds →
+- [x] `npm install`; `npm run build` (static export of the placeholder) succeeds →
       `frontend/out/index.html` exists.
-- [ ] `npm run lint` clean.
-- [ ] Commit: `feat(web): Next.js scaffold + Tailwind + shadcn primitives`.
+- [x] `npm run lint` clean.
+- [x] Commit: `feat(web): Next.js scaffold + Tailwind + shadcn primitives`.
 
 ### Task 3.2 — `lib/` core: types, api client, ws helper, schema mirror
 
@@ -393,14 +393,14 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 - Test: `frontend/lib/__tests__/schema.test.ts`, `api.test.ts`, `ws.test.ts`
   (Vitest; jsdom for ws mock).
 
-- [ ] **Test** `matchColumns`: a good header → `ok:true`; a header missing
+- [x] **Test** `matchColumns`: a good header → `ok:true`; a header missing
       `Destination Port` → in `requiredMiss`; a `dst port` header → `aliased`.
-- [ ] **Test** `api.ts`: zod parse accepts a valid `ForecastResponse` fixture, throws on
+- [x] **Test** `api.ts`: zod parse accepts a valid `ForecastResponse` fixture, throws on
       one with `horizon` missing.
-- [ ] **Test** `ws.ts`: mock `WebSocket`; simulate `onclose` → helper retries after the
+- [x] **Test** `ws.ts`: mock `WebSocket`; simulate `onclose` → helper retries after the
       backoff; `close()` stops retries.
-- [ ] Add `vitest.config.ts` + `"test"` script; run → green.
-- [ ] Commit: `feat(web): typed api client, ws helper, schema mirror`.
+- [x] Add `vitest.config.ts` + `"test"` script; run → green.
+- [x] Commit: `feat(web): typed api client, ws helper, schema mirror`.
 
 ### Task 3.3 — Shell: layout, topbar, sidenav, providers
 
@@ -412,9 +412,9 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   `HealthDot.tsx`, `ErrorBoundary.tsx`, `EmptyState.tsx`, `Skeletons.tsx`.
 - Create: `frontend/components/nav/SideNav.tsx`, `TopBar.tsx`.
 
-- [ ] `npm run build` static-exports; manual: `npx serve out`, all 7 nav links resolve
+- [x] `npm run build` static-exports; manual: `npx serve out`, all 7 nav links resolve
       to a page (placeholders OK), health dot reflects backend up/down.
-- [ ] Commit: `feat(web): app shell — topbar, sidenav, providers`.
+- [x] Commit: `feat(web): app shell — topbar, sidenav, providers`.
 
 ### Task 3.4 — Static content pages: `/`, `/architecture`, `/model`
 
@@ -426,8 +426,8 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   `/` and `/model` read `useQuery(meta)` for live L/K/F, serve mode, agent/session
   counts; `/architecture` endpoint table includes `/live/*` and `/agent/*`.
 
-- [ ] Build; manual check all three render with and without a backend.
-- [ ] Commit: `feat(web): overview, architecture, model pages`.
+- [x] Build; manual check all three render with and without a backend.
+- [x] Commit: `feat(web): overview, architecture, model pages`.
 
 ### Task 3.5 — Charts + shared panels
 
@@ -441,10 +441,10 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 - Test: `frontend/components/__tests__/ProgressionRibbon.test.tsx` (state→class),
   `HorizonTable.test.tsx` (6 rows, ALERT when `detection_prob ≥ threshold`).
 
-- [ ] **Tests** green (Vitest + RTL).
-- [ ] Storybook-free visual check: a `/dashboard` fed a fixture `ForecastResponse`
+- [x] **Tests** green (Vitest + RTL).
+- [x] Storybook-free visual check: a `/dashboard` fed a fixture `ForecastResponse`
       renders chart + ribbon + ATT&CK timeline + tables.
-- [ ] Commit: `feat(web): forecast charts + SOC panels`.
+- [x] Commit: `feat(web): forecast charts + SOC panels`.
 
 ### Task 3.6 — `/sources` + `/pipeline`
 
@@ -459,9 +459,9 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 - `/pipeline`: the 5-step stepper with live counts from `store.result?.meta` or the
   active live session; job progress bar.
 
-- [ ] Build; manual: upload `_legacy` sample or a synthetic CSV → report renders,
+- [x] Build; manual: upload `_legacy` sample or a synthetic CSV → report renders,
       missing-column case shows errors, happy path routes to dashboard (needs backend).
-- [ ] Commit: `feat(web): data-sources wizard + pipeline view`.
+- [x] Commit: `feat(web): data-sources wizard + pipeline view`.
 
 ### Task 3.7 — `/dashboard`
 
@@ -471,9 +471,9 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   Alert KPI tiles, `AnchorTable` (select → `store.selectedAnchor`), `AnchorDetail`.
   Empty state when neither source present.
 
-- [ ] Build; manual with a fixture result and with `?session=` against a running
+- [x] Build; manual with a fixture result and with `?session=` against a running
       synthetic session.
-- [ ] Commit: `feat(web): SOC dashboard (upload + live session)`.
+- [x] Commit: `feat(web): SOC dashboard (upload + live session)`.
 
 ### Task 3.8 — `/live` (test-bed + capture)
 
@@ -490,9 +490,9 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 - Test: `frontend/e2e/live.spec.ts` (Playwright) — stub `/agent/status`,
   `/live/sessions*`, and the WS; starting a synthetic session shows a forecast card.
 
-- [ ] `npm run build`; `npm run test:e2e` (Playwright, `webServer` = `next start`/`serve
+- [x] `npm run build`; `npm run test:e2e` (Playwright, `webServer` = `next start`/`serve
       out`, backend stubbed) → green.
-- [ ] Commit: `feat(web): live view — synthetic test-bed + capture picker`.
+- [x] Commit: `feat(web): live view — synthetic test-bed + capture picker`.
 
 ### Task 3.9 — Frontend Docker + cleanup
 
@@ -503,8 +503,8 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 - Modify: root `.gitignore` — `frontend/node_modules/`, `frontend/.next/`,
   `frontend/out/`.
 
-- [ ] `docker build -t sentinel-wm-frontend frontend/` succeeds; container serves `/`.
-- [ ] Commit: `feat(web): static Docker image; drop legacy SPA`.
+- [x] `docker build -t sentinel-wm-frontend frontend/` succeeds; container serves `/`.
+- [x] Commit: `feat(web): static Docker image; drop legacy SPA`.
 
 ---
 
@@ -522,8 +522,8 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 - Test: `backend/tests/test_logging.py` — a request carries its `X-Request-ID` through to
   the response header; `configure_logging(True)` emits parseable JSON lines.
 
-- [ ] Tests green; `pytest backend/ -q` green.
-- [ ] Commit: `feat(ops): structured logging + request ids`.
+- [x] Tests green; `pytest backend/ -q` green.
+- [x] Commit: `feat(ops): structured logging + request ids`.
 
 ### Task 4.2 — `/health` detail + optional `/metrics`
 
@@ -537,8 +537,8 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
 - Modify: `backend/pyproject.toml` — `prometheus-client` in an optional `metrics` extra.
 - Test: `backend/tests/test_health_detail.py`.
 
-- [ ] Tests green.
-- [ ] Commit: `feat(ops): health detail + optional prometheus metrics`.
+- [x] Tests green.
+- [x] Commit: `feat(ops): health detail + optional prometheus metrics`.
 
 ### Task 4.3 — Compose, Makefile, env, docs
 
@@ -554,19 +554,19 @@ Notes: `feed` runs `poll_ready` via `asyncio.to_thread`; fans out
   flowmeter notes.
 - Modify: root `.env.example` — new vars.
 
-- [ ] `docker compose config` validates; `make backend-test` + `make agent-test` green.
-- [ ] Commit: `docs(ops): compose, Makefile, README, technical reference`.
+- [x] `docker compose config` validates; `make backend-test` + `make agent-test` green.
+- [x] Commit: `docs(ops): compose, Makefile, README, technical reference`.
 
 ### Task 4.4 — Full-stack verification
 
-- [ ] `docker compose up --build` → backend :8000 healthy, frontend :8080 serves.
-- [ ] In the UI: start a `portscan` synthetic session on `/live` → timeline + ATT&CK
+- [x] `docker compose up --build` → backend :8000 healthy, frontend :8080 serves.
+- [x] In the UI: start a `portscan` synthetic session on `/live` → timeline + ATT&CK
       cards populate; "Open in dashboard" shows the anchor detail.
-- [ ] Locally (not compose): `make capture-agent`, `/live` → Live capture → pick loopback
+- [x] Locally (not compose): `make capture-agent`, `/live` → Live capture → pick loopback
       → Start while pinging localhost → forecasts stream.
-- [ ] `pytest backend/ -q && pytest capture-agent/ -q && (cd frontend && npm test)` all
+- [x] `pytest backend/ -q && pytest capture-agent/ -q && (cd frontend && npm test)` all
       green.
-- [ ] Commit: `test: full-stack live verification` (notes in the message).
+- [x] Commit: `test: full-stack live verification` (notes in the message).
 
 ---
 
