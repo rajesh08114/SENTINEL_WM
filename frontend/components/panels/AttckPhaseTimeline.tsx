@@ -15,8 +15,24 @@ export function AttckPhaseTimeline({ horizon }: { horizon: HorizonStep[] }) {
               </span>
               <ConfBadge c={a.confidence} />
             </div>
-            <div className="text-sm font-semibold">{a.mitre_tactic || "—"}</div>
+            <div className="flex items-center gap-1.5 text-sm font-semibold">
+              {a.mitre_tactic || "—"}
+              {(a as any).family_inferred && (
+                <span className="rounded border border-warn/40 bg-warn/10 px-1 py-[1px] text-[9px] font-normal uppercase text-warn">
+                  inferred
+                </span>
+              )}
+            </div>
             <div className="text-xs text-muted">{a.kill_chain_phase || ""}</div>
+            {(a as any).possible_family && (
+              <div className="text-[11px] text-muted">
+                possible family:{" "}
+                <span className="text-ink">{(a as any).possible_family}</span>{" "}
+                <span className="opacity-70">
+                  ({(a as any).possible_family_confidence || "low"} conf · advisory)
+                </span>
+              </div>
+            )}
             {a.technique_ids?.length ? (
               <div className="flex flex-wrap gap-1">
                 {a.technique_ids.map((t) => (

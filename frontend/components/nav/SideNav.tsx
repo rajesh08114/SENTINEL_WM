@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Activity, Boxes, Cpu, GaugeCircle, LayoutGrid, Radio, Workflow,
+  Activity, Boxes, Cpu, FlaskConical, GaugeCircle, LayoutGrid, Radio, Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const NAV = [
   { href: "/", label: "Overview", icon: LayoutGrid },
+  { href: "/research", label: "Research", icon: FlaskConical },
   { href: "/sources", label: "Data Sources", icon: Boxes },
   { href: "/pipeline", label: "Pipeline", icon: Workflow },
   { href: "/dashboard", label: "SOC Dashboard", icon: GaugeCircle },

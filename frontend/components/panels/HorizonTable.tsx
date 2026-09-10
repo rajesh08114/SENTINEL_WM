@@ -34,7 +34,12 @@ export function HorizonTable({
                   {pct(h.attack_ci[0])} – {pct(h.attack_ci[1])}
                 </td>
                 <td>{(h.progression_state || "NORMAL").replace("_", " ")}</td>
-                <td>{h.attck?.mitre_tactic || "—"}</td>
+                <td>
+                  {h.attck?.mitre_tactic || "—"}
+                  {(h.attck as any)?.family_inferred && (
+                    <span className="ml-1 text-[10px] text-warn">(inferred)</span>
+                  )}
+                </td>
                 <td className={cn(alert ? "font-semibold text-danger" : "text-muted")}>
                   {alert ? "ALERT" : "—"}
                 </td>

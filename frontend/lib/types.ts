@@ -10,6 +10,9 @@ export interface AttckAssessment {
   rationale?: string;
   dominant_family?: string;
   family_transition?: string | null;
+  family_inferred?: boolean;
+  possible_family?: string | null;
+  possible_family_confidence?: string | null;
 }
 
 export interface HorizonStep {
