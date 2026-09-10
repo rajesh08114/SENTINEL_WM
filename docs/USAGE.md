@@ -149,6 +149,34 @@ probabilities mean something.
 `202 {job_id}` instead of an inline result; the console routes you to
 **Pipeline** and polls `/jobs/{id}` until done, then to the dashboard.
 
+### 3b. PCAP upload (Phase 2 — now live)
+
+**Data Sources → PCAP tab → drop a `.pcap` / `.pcapng`.** The backend reads it
+offline with scapy (no capture privileges), reassembles bidirectional TCP/UDP
+flows with the same `FlowMeter` the live agent uses, and runs the identical
+pipeline — you land on the dashboard exactly like the CSV path.
+
+- **Observe:** the toast reports how many flows were reassembled; a capture with
+  fewer than ~13 ten‑second windows produces **no anchors** (needs L = 12 history).
+- Ceiling is **`SENTINEL_PCAP_MAX_BYTES`** (60 MB) → `413`. For a bigger capture,
+  slice it (`editcap -A <start> -B <end> in.pcap out.pcap`, `tshark -c N`) or
+  convert to a flow CSV (`cicflowmeter -f capture.pcap -c flows.csv`).
+- Non‑TCP/UDP packets are ignored; the flow meter emits the 11 required
+  CICFlowMeter columns + TCP flag booleans + timing, everything else defaults to
+  0 as an uploaded CSV would.
+
+CLI: `curl -F file=@capture.pcap -F explain=false localhost:8000/forecast/pcap`.
+
+### 3c. When the family is unknown
+
+A raw CSV / PCAP / live capture has no attack‑family label, so the ATT&CK tactic
+can't be pinned precisely. The console now shows a **progression‑state‑derived
+tactic** (ONSET → *Execution / Initial Access*, ACTIVE → *Impact*, CONTINUATION →
+*Impact / Persistence*) instead of "family unknown", and — when the window's
+feature profile is blatant — a low‑confidence **inferred** family tagged
+`(inferred)` plus an advisory *possible family*. For precise ATT&CK technique IDs,
+pass a **family hint** on upload (e.g. `DoS Hulk`, `PortScan`, `SSH-Patator`).
+
 ---
 
 ## 4. Walkthrough B — Synthetic test‑bed (proves the real‑time path)
@@ -295,6 +323,9 @@ curl -s $B/models
 
 # CSV forecast (sync if <= 20k flows, else 202 {job_id})
 curl -s -X POST $B/forecast/csv -F file=@demo/demo_dos_onset.csv -F 'family_hint=DoS Hulk' -F explain=true
+
+# PCAP forecast (offline reassembly -> same ForecastResponse; 413 over 60 MB)
+curl -s -X POST $B/forecast/pcap -F file=@capture.pcap -F explain=false
 
 # async job
 curl -s $B/jobs ; curl -s $B/jobs/<id> ; curl -s $B/jobs/<id>/result

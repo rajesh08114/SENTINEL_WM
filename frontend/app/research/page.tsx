@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Panel } from "@/components/ui/card";
 import { KpiTile } from "@/components/panels/KpiTile";
 import { Scoreboard, HorizonF1Table } from "@/components/research/Scoreboard";
+import { thousands } from "@/lib/format";
 import {
   LEAKAGE_CONTROLS, PARAM_BUDGET, SPLIT_NOTE, TRUST_POINTS,
 } from "@/lib/research-data";
@@ -183,7 +184,7 @@ export default function ResearchPage() {
                   }
                 >
                   <td className="text-xs">{p.part}</td>
-                  <td className="mono text-xs">{p.params.toLocaleString()}</td>
+                  <td className="mono text-xs">{thousands(p.params)}</td>
                   <td className="text-xs text-muted">{p.note}</td>
                 </tr>
               ))}

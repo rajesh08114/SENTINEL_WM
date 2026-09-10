@@ -45,7 +45,7 @@ a throwaway random bundle: `python -m pytest -q`.
 | `GET`  | `/meta` | L, K, F, window size, progression states, feature names, bundle manifest |
 | `GET`  | `/models` | the full trained-model registry (reference; MVP serves `SENTINEL-WM`) |
 | `POST` | `/forecast/csv` | multipart `file` (flow CSV) + optional `family_hint`, `explain`. ≤ `MAX_SYNC_FLOWS` → `200` `ForecastResponse`; larger → `202 {job_id}` |
-| `POST` | `/forecast/pcap` | `501` — Phase 2 (run `research/extraction/extractor.py` and upload the CSV) |
+| `POST` | `/forecast/pcap` | multipart `.pcap`/`.pcapng` → offline flow reassembly (scapy + vendored `FlowMeter`) → same `ForecastResponse` as `/forecast/csv`. `413` over `PCAP_MAX_BYTES` (60 MB) |
 | `GET`  | `/jobs`, `/jobs/{id}`, `/jobs/{id}/result` | async job status + result |
 | `WS`   | `/stream` | telemetry: stream `{"type":"flows","records":[…]}`, receive `{"type":"forecast",…}` per closed 10 s window |
 
@@ -93,7 +93,7 @@ tests/                  pytest (random-bundle fixture) + test_vendor_sync + ws_s
 
 ## Not in the MVP (see the plan)
 
-PCAP ingestion (Phase 2), the GAT member of the blend (needs per-window host
+The GAT member of the blend (needs per-window host
 graphs as a side input), auth, Redis. The `SENTINEL-WM (system)` blend with
 `tcn`/`lstm`/`gru` **is** wired in (`SENTINEL_SERVE_MODE`). Job execution is an
 in-process thread pool — swap for a process pool or a queue if you add GIL-bound

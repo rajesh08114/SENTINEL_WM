@@ -825,6 +825,20 @@ a `scapy.AsyncSniffer` + a 1-s `FlowMeter.harvest()` → `{"type":"flows", …}`
   `REGISTRY` singleton), `routes_agent.py` (`WS /agent`, `GET /agent/status`). A
   `POST /live/sessions {source:"capture"}` binds the first agent, sends `start`;
   `DELETE` / disconnect sends `stop` and unbinds.
+- `flowmeter.py` is **vendored** into `backend/app/sentinel_infer/` for the
+  offline PCAP path (§8.3b); the two copies are kept identical.
+
+### 8.3b Offline PCAP ingestion (`app/sentinel_infer/pcap.py`)
+
+`POST /forecast/pcap` accepts a `.pcap` / `.pcapng`, reads it with
+`scapy.utils.PcapReader` (pure-Python parse — no libpcap, no capture
+privileges), replays every packet through the vendored `FlowMeter` with the
+time-eviction timeouts disabled, and `flush_all()`s to the same CICFlowMeter
+row schema an uploaded CSV carries. The rows go straight into
+`InferenceEngine.forecast`, so the response is an ordinary `ForecastResponse`.
+`413` over `SENTINEL_PCAP_MAX_BYTES` (default 60 MB); `422` on an unreadable
+capture or one with no TCP/UDP flows. `family_infer.infer_family` supplies the
+family the same way it does for a hint-less CSV.
 
 ### 8.4 Ops
 
