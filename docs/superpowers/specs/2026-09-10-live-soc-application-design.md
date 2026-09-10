@@ -347,6 +347,15 @@ Each phase is independently testable and leaves the app working.
 - **Flowmeter fidelity** — a full CICFlowMeter reimplementation is out of scope; we emit
   the columns the model actually consumes (required + flags + a few Tier-2) and default
   the rest to 0, exactly as `normalise_upload` already tolerates.
+- **Synthetic-traffic calibration** *(confirmed during Phase 1)* — the production world
+  model was trained on specific CIC-IDS-2017 fingerprints and runs hot near saturation
+  (see the F1 / threshold analysis). Hand-generated flows are out-of-distribution, so the
+  *absolute* P(attack) of a synthetic session is not meaningful — benign and attack
+  phases can both read ~0.99. The test-bed still delivers its purpose: it drives the real
+  streaming → windowing → rollout → progression → ATT&CK → CI path end to end and shows
+  the relative narrative. The `/live` UI and docs state this limitation plainly. Genuine
+  calibration would need replaying real captures (deferred) or retraining with a
+  synthetic-benign channel.
 - **Static export vs shadcn** — all data is client-fetched; no server components need
   runtime, so `output: "export"` holds. If a route handler is ever needed we switch to
   `output: "standalone"` (one-line change + Node in the image).

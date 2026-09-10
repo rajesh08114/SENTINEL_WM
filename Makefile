@@ -1,6 +1,7 @@
 # SENTINEL-WM  -  research / backend / frontend
 .DEFAULT_GOAL := help
-.PHONY: help install research-run bundle backend-dev backend-test up down docker-build
+.PHONY: help install research-run bundle backend-dev backend-test synth-demo \
+        capture-agent agent-test frontend-dev frontend-build up down docker-build
 
 help:  ## show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
@@ -20,6 +21,15 @@ backend-dev:  ## run the API with autoreload (needs backend/models/)
 
 backend-test:  ## backend unit tests (throwaway random bundle, no training needed)
 	cd backend && python -m pytest -q
+
+synth-demo:  ## stream a synthetic scenario from a running backend (make backend-dev first)
+	cd backend && python -m tests.live_smoke --scenario portscan --speed 30
+
+capture-agent:  ## run the live-capture agent on this host (Npcap + Administrator)
+	cd capture-agent && python -m sentinel_capture.cli run --backend ws://localhost:8000
+
+agent-test:  ## capture-agent unit tests (flowmeter + interfaces, no live capture)
+	cd capture-agent && python -m pytest -q
 
 docker-build:  ## build the backend image
 	docker build -t sentinel-wm-backend backend/

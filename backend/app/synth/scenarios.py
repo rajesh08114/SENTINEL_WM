@@ -26,10 +26,14 @@ REQUIRED = [
 
 _FLAGS = ("fin", "syn", "rst", "psh", "ack", "urg")
 
-_INTERNAL = [f"10.0.0.{i}" for i in range(10, 60)]
+_INTERNAL = [f"10.0.0.{i}" for i in range(10, 40)]
+# a small, stable set of "servers" most benign traffic talks to (established,
+# low-entropy) - keeps the baseline in-distribution-ish for the real model
+_SERVERS = ["10.0.0.10", "10.0.0.11", "10.0.0.12", "142.250.72.196",
+            "151.101.1.140"]
 _EXTERNAL = ["93.184.216.34", "142.250.72.196", "151.101.1.140",
              "104.16.132.229", "13.107.42.14", "198.51.100.7"]
-_BENIGN_DPORTS = [80, 443, 443, 443, 53, 22, 3389, 8080]
+_BENIGN_DPORTS = [443, 443, 443, 443, 80, 80, 53]
 
 PHASES = ("benign", "pre_attack", "onset", "active", "continuation")
 _DEFAULT_SCHEDULE = [(0.00, "benign"), (0.10, "pre_attack"), (0.25, "onset"),
@@ -136,20 +140,22 @@ def _row(epoch: float, src: str, dst: str, sport: int, dport: int, proto: int,
 
 def _benign_flow(rng: random.Random, epoch: float) -> dict:
     src = rng.choice(_INTERNAL)
-    if rng.random() < 0.7:
-        dst = rng.choice(_EXTERNAL)
+    # ~92% of benign traffic is established sessions to a few known servers
+    if rng.random() < 0.92:
+        dst = rng.choice([s for s in _SERVERS if s != src])
     else:
         dst = rng.choice([ip for ip in _INTERNAL if ip != src])
     dport = rng.choice(_BENIGN_DPORTS)
     proto = 17 if dport == 53 else 6
-    fwd = rng.randint(2, 18)
-    bwd = rng.randint(1, max(1, fwd))
-    fwd_b = fwd * rng.randint(60, 700)
-    bwd_b = bwd * rng.randint(80, 1400)
-    dur = rng.uniform(0.005, 4.0)
+    # longer, packet-rich, low-burstiness conversations
+    fwd = rng.randint(6, 40)
+    bwd = rng.randint(6, 48)
+    fwd_b = fwd * rng.randint(120, 600)
+    bwd_b = bwd * rng.randint(300, 1600)
+    dur = rng.uniform(0.3, 6.0)
     if proto == 6:
-        fl = _flags(ack=True, psh=rng.random() < 0.6, syn=rng.random() < 0.25,
-                    fin=rng.random() < 0.3)
+        fl = _flags(ack=True, psh=rng.random() < 0.75, syn=True,
+                    fin=rng.random() < 0.7)
     else:
         fl = _flags()
     return _row(epoch, src, dst, rng.randint(1024, 65000), dport, proto,
