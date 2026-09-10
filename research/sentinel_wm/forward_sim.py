@@ -31,7 +31,8 @@ from sentinel_wm.models import build_model
 
 # -----------------------------------------------------------------------------
 def load_checkpoint(device: str = "cpu"):
-    ckpt = torch.load(C.WORLD_MODEL_PT, map_location=device, weights_only=False)
+    path = C.bundled("world_model.pt") or C.WORLD_MODEL_PT
+    ckpt = torch.load(path, map_location=device, weights_only=False)
     cfg = C.CONFIG
     cfg.sequence.horizon = ckpt["sequence"]["K"]
     model = build_model(ckpt["config"]["n_features"], cfg).to(device)

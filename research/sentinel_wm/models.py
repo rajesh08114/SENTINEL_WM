@@ -314,8 +314,13 @@ def wm_predict(model: "SentinelWorldModel", X, dt, device="cpu",
     n = 1
     for sp in (snapshots or []):
         try:
-            sd = torch.load(sp if os.path.isabs(sp) else os.path.join(C.ROOT, sp),
-                            map_location=device, weights_only=False)
+            if os.path.isabs(sp):
+                p = sp
+            else:                                   # try the model bundle, then ROOT
+                p = next((c for c in (os.path.join(C.MODEL_DIR, sp),
+                                      os.path.join(C.ROOT, sp))
+                          if os.path.exists(c)), os.path.join(C.ROOT, sp))
+            sd = torch.load(p, map_location=device, weights_only=False)
             snap = SentinelWorldModel(model.n_features, model.n_states,
                                       model.horizon, model.m).to(device)
             snap.load_state_dict(sd)

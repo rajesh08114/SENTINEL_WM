@@ -110,6 +110,11 @@ def cmd_research(a):
     research.run_all(ns)
 
 
+def cmd_bundle(a):
+    from sentinel_wm import bundle
+    bundle.assemble_bundle(a.dst)
+
+
 def cmd_all(a):
     for fn in (cmd_preprocess, cmd_windows, cmd_sequences, cmd_baseline):
         _p(fn.__name__); fn(a)
@@ -176,6 +181,11 @@ def build_parser():
     rs = sub.add_parser("research"); rs.set_defaults(func=cmd_research)
     rs.add_argument("--quick", action="store_true")
     rs.add_argument("--skip", nargs="*", default=[])
+
+    bd = sub.add_parser("bundle", help="assemble the portable model bundle for backend/")
+    bd.set_defaults(func=cmd_bundle)
+    bd.add_argument("dst", nargs="?", default=None,
+                    help="destination dir (default <ROOT>/models)")
 
     al = sub.add_parser("all"); al.set_defaults(func=cmd_all)
     al.add_argument("--epochs", type=int, default=None)

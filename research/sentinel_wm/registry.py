@@ -31,6 +31,10 @@ import numpy as np
 from sentinel_wm import config as C
 
 def _models_dir() -> str:
+    # a deploy bundle (MODEL_DIR/models/) wins over the research tree (runs/models/)
+    b = os.path.join(C.MODEL_DIR, "models")
+    if os.path.isdir(b):
+        return b
     return os.path.join(C.research_dir(), "models")
 
 
@@ -142,13 +146,16 @@ def build_registry(verbose: bool = True) -> Dict:
     reg: Dict[str, Dict] = {}
     classical_dir, nn_dir = _classical_dir(), _nn_dir()
     registry_json = _registry_json()
+    # store model paths relative to whichever tree they live in (bundle or research)
+    _base = C.MODEL_DIR if os.path.isdir(os.path.join(C.MODEL_DIR, "models")) else C.ROOT
+    wm_pt = C.bundled("world_model.pt") or C.WORLD_MODEL_PT
 
     for meta_path in sorted(glob.glob(os.path.join(classical_dir, "*.meta.json"))):
         meta = json.load(open(meta_path))
         name = meta["name"]
         reg[name] = dict(family="classical", framework="sklearn",
                          kind=meta.get("input_kind"),
-                         path=os.path.relpath(meta_path[:-10] + ".pkl", C.ROOT),
+                         path=os.path.relpath(meta_path[:-10] + ".pkl", _base),
                          input=dict(tensor="window" if meta.get("input_kind") == "window"
                                     else "sequence_flat", K=meta.get("horizon")),
                          threshold=meta.get("threshold"),
@@ -159,23 +166,23 @@ def build_registry(verbose: bool = True) -> Dict:
         name = meta["name"]
         reg[name] = dict(family=meta.get("family", "nn"), framework="torch",
                          kind=meta.get("kind"),
-                         path=os.path.relpath(meta_path[:-10] + ".pt", C.ROOT),
+                         path=os.path.relpath(meta_path[:-10] + ".pt", _base),
                          input=dict(tensor="graph_sequence" if meta.get("kind") == "gat"
                                     else "sequence"),
                          threshold=meta.get("threshold"),
                          params=meta.get("params"),
                          metrics=meta.get("metrics", {}))
 
-    if os.path.exists(C.WORLD_MODEL_PT):
+    if os.path.exists(wm_pt):
         import torch
-        ck = torch.load(C.WORLD_MODEL_PT, map_location="cpu", weights_only=False)
+        ck = torch.load(wm_pt, map_location="cpu", weights_only=False)
         wm = os.path.join(C.REPORT_DIR, "world_model_metrics.json")
         met = json.load(open(wm))["test"]["any_horizon"] if os.path.exists(wm) else {}
         ek = ck.get("config", {}).get("model", {}).get("encoder", "gru")
         reg["SENTINEL-WM"] = dict(
             family="world_model", framework="torch",
             kind=f"{ek}+STN (self-ensemble, {len(ck.get('snapshots', []))} snap)",
-            path=os.path.relpath(C.WORLD_MODEL_PT, C.ROOT),
+            path=os.path.relpath(wm_pt, _base),
             input=dict(tensor="sequence", L=ck["sequence"]["L"], K=ck["sequence"]["K"]),
             threshold=ck.get("alert_threshold"),
             snapshots=ck.get("snapshots", []),
@@ -242,7 +249,11 @@ def load_predictor(name: str, device: str = "cpu"):
     if name not in reg:
         raise KeyError(f"{name!r} not in registry. have: {list(reg)}")
     r = reg[name]
-    path = os.path.join(C.ROOT, r["path"])
+    # `path` is stored relative to C.ROOT (research tree) or to MODEL_DIR (bundle);
+    # take whichever base actually has the file.
+    path = next((c for c in (os.path.join(C.MODEL_DIR, r["path"]),
+                             os.path.join(C.ROOT, r["path"]))
+                 if os.path.exists(c)), os.path.join(C.ROOT, r["path"]))
     if r["framework"] == "sklearn":
         meta = json.load(open(path[:-4] + ".meta.json"))
         return _ClassicalPredictor(name, path, meta)

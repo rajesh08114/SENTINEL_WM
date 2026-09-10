@@ -523,6 +523,14 @@ def run_all(args):
     if "simulate" not in skip:
         print("\n########## SIMULATE ##########"); step_simulate(args.device)
     print("\n########## REPORT ##########"); step_report()
+    if "bundle" not in skip and R == os.path.join(C.ROOT, C.RUN_DIR_NAME):
+        # only the PRIMARY run assembles the deploy bundle (not zero-shot)
+        print("\n########## BUNDLE ##########")
+        try:
+            from sentinel_wm import bundle
+            bundle.assemble_bundle(C.MODEL_DIR)
+        except Exception as e:
+            print(f"[bundle] skipped: {e}")
     print(f"\n[research] done in {(time.time()-t0)/60:.1f} min -> {R}")
 
 

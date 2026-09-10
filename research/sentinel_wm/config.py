@@ -58,6 +58,14 @@ os.makedirs(ARTIFACTS, exist_ok=True)
 # <ROOT>/models when SENTINEL_WM_MODEL_DIR is unset.
 MODEL_DIR = os.environ.get("SENTINEL_WM_MODEL_DIR") or os.path.join(ROOT, "models")
 
+
+def bundled(*rel: str):
+    """Return `MODEL_DIR/<rel...>` if a deploy bundle is present and holds that
+    file, else None. Readers do `path = C.bundled('world_model.pt') or
+    C.WORLD_MODEL_PT` so the serving backend never touches the research tree."""
+    cand = os.path.join(MODEL_DIR, *rel)
+    return cand if os.path.exists(cand) else None
+
 # Raw labelled unified-flow CSVs produced by extraction/label_mapping.ipynb.
 # `unified_AllDays_labeled.csv` holds all 5 CIC-IDS-2017 days (Mon-Fri) in one
 # file with a `source_day` column, so the proposal's day-based split
