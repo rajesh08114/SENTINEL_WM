@@ -292,6 +292,18 @@ class InferenceEngine:
             used = "SENTINEL-WM (system)"
             self._apply_system_blend(anchors, X, DT)
 
+        all_matched_rule_ids = set()
+        for i, a in enumerate(anchors):
+            feat_dict = {col: float(val) for col, val in zip(self.feat_cols, X[i][-1])}
+            try:
+                from app.rules.engine import RULE_ENGINE
+                matches = RULE_ENGINE.evaluate_anchor(a, feat_dict)
+                a["matched_rules"] = [m.model_dump() for m in matches]
+                for m in matches:
+                    all_matched_rule_ids.add(m.rule_id)
+            except Exception:
+                a["matched_rules"] = []
+
         alerts = sum(int(a["alert"]) for a in anchors)
         mx = max((a.get("max_detection_prob", a["max_attack_prob"])
                   for a in anchors), default=0.0)
@@ -299,6 +311,7 @@ class InferenceEngine:
                          for a in anchors for h in a["horizon"]
                          if h["attck"]["kill_chain_phase"] not in
                          ("None", "Attack (unspecified)")})
+        total_rule_matches = sum(len(a.get("matched_rules", [])) for a in anchors)
         return {
             "meta": {"n_flows": n_flows, "n_windows": int(len(sw)),
                      "n_anchors": len(anchors), "window_seconds": self.window_seconds,
@@ -308,9 +321,12 @@ class InferenceEngine:
                                       if used.endswith("(system)") else None),
                      "family_hint": family_hint or "BENIGN"},
             "summary": {"n_alerts": alerts, "max_attack_prob": round(mx, 4),
-                        "phases": phases, "alert_threshold": self.alert_threshold},
+                        "phases": phases, "alert_threshold": self.alert_threshold,
+                        "matched_rules_count": total_rule_matches,
+                        "matched_rule_ids": sorted(all_matched_rule_ids)},
             "anchors": anchors,
         }
+
 
 
 # ---------------------------------------------------------------------------

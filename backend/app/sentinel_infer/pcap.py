@@ -20,8 +20,13 @@ class BadPcap(ValueError):
     """422 — the upload is not a readable pcap/pcapng, or has no usable packets."""
 
 
-def pcap_to_flows(data: Union[bytes, str, Path]) -> pd.DataFrame:
-    """bytes (an upload) or a path -> DataFrame of flow rows, time-sorted."""
+def pcap_to_flows(data: Union[bytes, str, Path], bpf_filter: Optional[str] = None) -> pd.DataFrame:
+    """bytes (an upload) or a path -> DataFrame of flow rows, time-sorted.
+
+    Optional ``bpf_filter``: standard Berkeley Packet Filter string
+    (e.g., 'tcp port 80', 'ip host 192.168.1.5', 'not broadcast and not multicast')
+    to filter packets during ingestion before flow reassembly.
+    """
     try:
         from scapy.utils import PcapReader
     except Exception as e:                                   # pragma: no cover
@@ -44,11 +49,26 @@ def pcap_to_flows(data: Union[bytes, str, Path]) -> pd.DataFrame:
     meter = FlowMeter(idle_timeout=1e9, active_timeout=1e9)  # never time-evict offline
     n_pkts = 0
     try:
-        with PcapReader(str(path)) as rd:
-            for pkt in rd:
+        if bpf_filter and bpf_filter.strip():
+            from scapy.sendrecv import sniff
+            clean_bpf = bpf_filter.strip()
+            def _on_pkt(pkt):
+                nonlocal n_pkts
                 ts = float(getattr(pkt, "time", 0.0)) or None
                 meter.add_packet(pkt, ts)
                 n_pkts += 1
+            try:
+                sniff(offline=str(path), filter=clean_bpf, prn=_on_pkt, store=False)
+            except Exception as e:
+                raise BadPcap(f"Invalid BPF filter '{clean_bpf}': {e}")
+        else:
+            with PcapReader(str(path)) as rd:
+                for pkt in rd:
+                    ts = float(getattr(pkt, "time", 0.0)) or None
+                    meter.add_packet(pkt, ts)
+                    n_pkts += 1
+    except BadPcap:
+        raise
     except Exception as e:
         raise BadPcap(f"could not parse the capture: {e}")
     finally:
@@ -59,6 +79,8 @@ def pcap_to_flows(data: Union[bytes, str, Path]) -> pd.DataFrame:
                 pass
 
     if n_pkts == 0:
+        if bpf_filter and bpf_filter.strip():
+            raise BadPcap(f"no packets matched the BPF filter: '{bpf_filter.strip()}'")
         raise BadPcap("the capture contains no packets")
 
     rows = meter.flush_all()
@@ -66,3 +88,4 @@ def pcap_to_flows(data: Union[bytes, str, Path]) -> pd.DataFrame:
         raise BadPcap("no TCP/UDP flows could be assembled from the capture")
     df = pd.DataFrame.from_records(rows).sort_values("flow_start_epoch")
     return df.reset_index(drop=True)
+

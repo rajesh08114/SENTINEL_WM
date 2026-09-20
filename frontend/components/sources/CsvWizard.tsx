@@ -11,6 +11,7 @@ import { matchColumns, REQUIRED, FEATURE_GROUPS } from "@/lib/schema";
 import { api, pollJob } from "@/lib/api";
 import { useStore, type CsvState } from "@/lib/store";
 import { num } from "@/lib/format";
+import { ForecastProgress, CyberSpinner } from "@/components/ui/loading";
 
 export function CsvWizard() {
   const router = useRouter();
@@ -22,6 +23,8 @@ export function CsvWizard() {
   const [familyHint, setFamilyHint] = React.useState("");
   const [explain, setExplain] = React.useState(true);
   const fileRef = React.useRef<HTMLInputElement>(null);
+
+  const [stage, setStage] = React.useState("Ingesting and preparing flow records...");
 
   const handle = async (file: File) => {
     try {
@@ -44,20 +47,43 @@ export function CsvWizard() {
 
   const run = async () => {
     if (!csv) return;
+    if (!csv.file) {
+      toast.error("File session expired. Please re-select the CSV file.");
+      fileRef.current?.click();
+      return;
+    }
     setBusy(true);
+    setStage("Uploading flow records to backend...");
     try {
+      const stageTimer = setTimeout(() => {
+        setStage("Aggregating 10s state windows and rolling forward World Model...");
+      }, 1500);
+
       const out = await api.forecastCsv(csv.file, { familyHint, explain });
+      clearTimeout(stageTimer);
+
       if (out.job) {
+        setStage("Large dataset detected — processing asynchronous worker job...");
         toast.info(`Large file — job ${out.job_id} queued`);
         router.push("/pipeline");
         const res = await pollJob(out.job_id);
         setResult(res);
-        toast.success("Job complete");
+        toast.success("Job complete: predictive forecast ready");
         router.push("/dashboard");
       } else {
+        setStage("Synthesizing ATT&CK tactics & saliency explanations...");
         setResult(out.result);
         toast[out.result.summary.n_alerts ? "warning" : "success"](
-          `${out.result.summary.n_alerts} alert window(s)`
+          `${out.result.summary.n_alerts} alert window(s) detected`,
+          {
+            description: `Peak attack prob: ${Math.round(
+              Math.max(
+                ...out.result.anchors.map(
+                  (a) => a.max_detection_prob ?? a.max_attack_prob
+                )
+              ) * 100
+            )}%`,
+          }
         );
         router.push("/dashboard");
       }
@@ -256,9 +282,21 @@ export function CsvWizard() {
               disabled={!csv.match.ok || busy}
               onClick={run}
             >
-              {busy ? "uploading…" : "Run forecast →"}
+              {busy ? (
+                <>
+                  <CyberSpinner size={13} /> {stage}
+                </>
+              ) : (
+                "Run forecast →"
+              )}
             </Button>
           </div>
+
+          {busy && (
+            <div className="mt-2">
+              <ForecastProgress stage={stage} />
+            </div>
+          )}
         </>
       )}
     </div>

@@ -58,17 +58,19 @@ def create_app() -> FastAPI:
     )
 
     from app.api import (routes_agent, routes_forecast, routes_jobs, routes_live,
-                         routes_meta, ws_stream)
+                         routes_meta, routes_rules, ws_stream)
     app.include_router(routes_meta.router)
     app.include_router(routes_forecast.router)
     app.include_router(routes_jobs.router)
     app.include_router(routes_live.router)
     app.include_router(routes_agent.router)
+    app.include_router(routes_rules.router)
     app.include_router(ws_stream.router)
     if settings.metrics:
         from app.api import routes_metrics
         app.include_router(routes_metrics.router)
     return app
+
 
 
 app = create_app()
