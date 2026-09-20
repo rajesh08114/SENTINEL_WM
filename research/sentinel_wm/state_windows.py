@@ -191,6 +191,60 @@ def _agg_windows(fw: pd.DataFrame, w: C.WindowConfig) -> pd.DataFrame:
     return out
 
 
+def _fill_idle_windows(sw: pd.DataFrame, w: C.WindowConfig, max_gap: int = 60) -> pd.DataFrame:
+    """Fill short idle/quiet gaps between observed windows with zero-traffic states.
+
+    A network with zero flows in a 10s window is an idle window, not a discontinuity.
+    Filling idle windows (up to max_gap = 60 windows / 10 minutes) prevents dropping
+    L=12 consecutive forecast anchors whenever a brief pause in network traffic occurs.
+    """
+    if sw.empty:
+        return sw
+    parts = []
+    for day, g in sw.groupby("day", sort=False):
+        g = g.sort_values("window_index")
+        wi = g["window_index"].to_numpy(np.int64)
+        diffs = np.diff(wi)
+        has_gaps = np.any((diffs > 1) & (diffs <= max_gap + 1))
+        if not has_gaps:
+            parts.append(g)
+            continue
+
+        all_wins = [wi[0]]
+        for i in range(len(wi) - 1):
+            gap = wi[i + 1] - wi[i]
+            if 1 < gap <= max_gap + 1:
+                for filler in range(wi[i] + 1, wi[i + 1]):
+                    all_wins.append(filler)
+            all_wins.append(wi[i + 1])
+
+        full_idx = pd.MultiIndex.from_product([[day], all_wins], names=["day", "window_index"])
+        g_full = g.set_index(["day", "window_index"]).reindex(full_idx).reset_index()
+
+        W = float(w.window_seconds)
+        valid_start = g["window_start"].dropna()
+        if not valid_start.empty:
+            base_t0 = valid_start.iloc[0] - g.loc[valid_start.index[0], "window_index"] * W
+            g_full["window_start"] = g_full["window_start"].fillna(
+                base_t0 + g_full["window_index"] * W
+            )
+
+        if "dominant_family" in g_full.columns:
+            g_full["dominant_family"] = g_full["dominant_family"].fillna("BENIGN")
+        if "attack_flows" in g_full.columns:
+            g_full["attack_flows"] = g_full["attack_flows"].fillna(0)
+        if "attack_ratio" in g_full.columns:
+            g_full["attack_ratio"] = g_full["attack_ratio"].fillna(0.0)
+        if "flow_count" in g_full.columns:
+            g_full["flow_count"] = g_full["flow_count"].fillna(0)
+
+        num_cols = g_full.select_dtypes(include=[np.number]).columns
+        g_full[num_cols] = g_full[num_cols].fillna(0.0)
+        parts.append(g_full)
+
+    return pd.concat(parts, ignore_index=True)
+
+
 # -----------------------------------------------------------------------------
 # 3. progression-state derivation  (episodes -> NORMAL/PRE/ONSET/ACTIVE/CONT.)
 # -----------------------------------------------------------------------------
@@ -362,6 +416,7 @@ def build_state_windows(flows: Optional[pd.DataFrame] = None,
 
     fw = _assign_windows(flows, w)
     sw = _agg_windows(fw, w)
+    sw = _fill_idle_windows(sw, w)
     sw = _derive_progression(sw, w)
     sw = _attach_attack_stage(sw)
 

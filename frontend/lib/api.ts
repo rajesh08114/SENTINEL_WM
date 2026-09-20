@@ -201,11 +201,12 @@ export const api = {
 
   async forecastPcap(
     file: File | Blob,
-    opts: { familyHint?: string; explain?: boolean } = {}
+    opts: { familyHint?: string; explain?: boolean; bpfFilter?: string } = {}
   ): Promise<ForecastResponse> {
     const fd = new FormData();
     fd.append("file", file, (file as File).name || "capture.pcap");
     if (opts.familyHint) fd.append("family_hint", opts.familyHint);
+    if (opts.bpfFilter) fd.append("bpf_filter", opts.bpfFilter);
     fd.append("explain", String(opts.explain ?? true));
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), 240_000); // pcap parsing can be slow
@@ -216,6 +217,7 @@ export const api = {
         body: fd,
         signal: ac.signal,
       });
+
     } catch (e) {
       throw new ApiError(
         (e as Error)?.name === "AbortError"

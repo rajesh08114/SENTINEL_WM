@@ -33,6 +33,16 @@ export interface DrivingFeatures {
   temporal_saliency_attention?: number[];
 }
 
+export interface RuleMatch {
+  rule_id: string;
+  rule_name: string;
+  severity: "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | string;
+  description: string;
+  mitre_technique?: string;
+  action?: string;
+  matched_value?: string;
+}
+
 export interface AnchorForecast {
   alert: boolean;
   first_alert_k: number | null;
@@ -43,6 +53,7 @@ export interface AnchorForecast {
   horizon: HorizonStep[];
   driving_features?: DrivingFeatures | null;
   meta?: Record<string, unknown> & { window_index?: number; stream_window?: number };
+  matched_rules?: RuleMatch[];
 }
 
 export interface ForecastMeta {
@@ -63,7 +74,10 @@ export interface ForecastSummary {
   max_attack_prob: number;
   phases: (string | { mitre_tactic?: string; kill_chain_phase?: string })[];
   alert_threshold: number;
+  matched_rules_count?: number;
+  matched_rule_ids?: string[];
 }
+
 
 export interface ForecastResponse {
   meta: ForecastMeta;

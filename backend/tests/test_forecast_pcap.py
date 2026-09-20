@@ -85,3 +85,26 @@ def test_forecast_pcap_too_large(client, monkeypatch):
         files={"file": ("big.pcap", b"0" * 5000, "application/octet-stream")},
     )
     assert r.status_code == 413
+
+
+def test_forecast_pcap_bpf_filter(client):
+    data = _demo_pcap()
+    r = client.post(
+        "/forecast/pcap",
+        files={"file": ("demo.pcap", data, "application/vnd.tcpdump.pcap")},
+        data={"explain": "false", "bpf_filter": "tcp port 443"},
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["meta"]["n_flows"] > 50
+
+
+def test_forecast_pcap_invalid_bpf(client):
+    data = _demo_pcap()
+    r = client.post(
+        "/forecast/pcap",
+        files={"file": ("demo.pcap", data, "application/vnd.tcpdump.pcap")},
+        data={"explain": "false", "bpf_filter": "this is completely invalid bpf syntax %%"},
+    )
+    assert r.status_code == 422
+

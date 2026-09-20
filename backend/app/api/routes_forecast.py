@@ -54,12 +54,14 @@ async def forecast_csv(
 
 @router.post("/forecast/pcap", responses={200: {"model": ForecastResponse}})
 async def forecast_pcap(
-    file: UploadFile = File(..., description=".pcap / .pcapng capture"),
+    file: UploadFile = File(..., description=".pcap / .pcapng capture (Wireshark / tcpdump)"),
+    bpf_filter: str | None = Form(None, description="optional Berkeley Packet Filter (e.g., 'tcp port 80', 'ip host 192.168.1.10')"),
     family_hint: str | None = Form(None),
     explain: bool = Form(True),
 ):
     """Offline PCAP -> reassemble bidirectional flows -> forecast. Same output
-    contract as /forecast/csv. Reads only TCP/UDP; other packets are ignored."""
+    contract as /forecast/csv. Reads only TCP/UDP; other packets are ignored.
+    Optional bpf_filter filters packets before flow reassembly."""
     try:
         get_engine()
     except (BundleNotFound, BundleContractError) as e:
@@ -77,8 +79,9 @@ async def forecast_pcap(
         )
 
     def _run() -> ForecastResponse:
-        df = pcap_to_flows(raw)
+        df = pcap_to_flows(raw, bpf_filter=bpf_filter)
         return forecast(df, family_hint, explain)
+
 
     try:
         return await run_in_threadpool(_run)

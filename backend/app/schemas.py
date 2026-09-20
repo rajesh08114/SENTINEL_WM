@@ -44,6 +44,7 @@ class AnchorForecast(BaseModel):
     detection_model: Optional[str] = None   # "SENTINEL-WM (system)" when the blend is active
     horizon: list[HorizonStep]
     driving_features: Optional[dict[str, Any]] = None
+    matched_rules: list[dict[str, Any]] = []
 
 
 class ForecastSummary(BaseModel):
@@ -52,6 +53,9 @@ class ForecastSummary(BaseModel):
     max_attack_prob: float
     phases: list[str] = []
     alert_threshold: Optional[float] = None
+    matched_rules_count: int = 0
+    matched_rule_ids: list[str] = []
+
 
 
 class ForecastResponse(BaseModel):

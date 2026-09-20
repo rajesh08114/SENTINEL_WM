@@ -77,14 +77,44 @@ cd capture-agent{"\n"}pip install -e .{"\n"}sentinel-capture run --backend ws://
           </label>
         ))}
       </div>
-      <Label className="flex flex-col gap-1">
-        capture filter (BPF — optional)
+      <div className="flex flex-col gap-2 rounded-md border border-line/60 bg-elevated/40 p-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-semibold uppercase tracking-wider text-muted">
+            Wireshark / BPF Capture Filter (Optional)
+          </Label>
+          <span className="text-[11px] text-muted">applied directly on NIC driver</span>
+        </div>
         <Input
           value={bpf}
           onChange={(e) => onBpf(e.target.value)}
-          placeholder="host 10.0.0.5   ·   net 192.168.56.0/24"
+          placeholder="e.g. not broadcast and not multicast, port 80, host 192.168.1.10"
+          className="font-mono text-xs"
         />
-      </Label>
+        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+          <span className="text-[11px] text-muted mr-1">Presets:</span>
+          {[
+            { label: "All Traffic", val: "" },
+            { label: "Exclude Noise", val: "not broadcast and not multicast" },
+            { label: "HTTP/HTTPS", val: "tcp port 80 or tcp port 443" },
+            { label: "DNS", val: "port 53" },
+            { label: "Admin Ports", val: "tcp port 22 or tcp port 3389" },
+          ].map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => onBpf(p.val)}
+              className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${
+                bpf === p.val
+                  ? "border-brand bg-brand/10 text-brand"
+                  : "border-line bg-surface hover:bg-elevated text-muted hover:text-ink"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
+

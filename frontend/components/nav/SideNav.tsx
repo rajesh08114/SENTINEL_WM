@@ -5,6 +5,7 @@ import {
   Activity, Boxes, Cpu, FlaskConical, GaugeCircle, LayoutGrid, Radio, Workflow,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useStore } from "@/lib/store";
 
 export const NAV = [
   { href: "/", label: "Overview", icon: LayoutGrid },
@@ -19,6 +20,9 @@ export const NAV = [
 
 export function SideNav() {
   const path = usePathname();
+  const liveSessionId = useStore((s) => s.liveSessionId);
+  const liveConnected = useStore((s) => s.liveConnected);
+
   return (
     <nav
       aria-label="Primary"
@@ -26,6 +30,9 @@ export function SideNav() {
     >
       {NAV.map(({ href, label, icon: Icon }) => {
         const active = href === "/" ? path === "/" : path.startsWith(href);
+        const isLiveItem = href === "/live" || href === "/dashboard";
+        const hasActiveLiveStream = isLiveItem && !!liveSessionId;
+
         return (
           <Link
             key={href}
@@ -37,8 +44,16 @@ export function SideNav() {
                 "bg-brand/10 text-ink shadow-[inset_2px_0_0_var(--brand)]"
             )}
           >
-            <Icon size={15} className="text-brand" />
-            <span className="hidden md:inline">{label}</span>
+            <Icon size={15} className={active ? "text-brand" : undefined} />
+            <span className="hidden md:inline flex-1">{label}</span>
+            {hasActiveLiveStream && (
+              <span className="relative hidden md:flex h-2 w-2 ml-auto">
+                {liveConnected && (
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-ok opacity-75" />
+                )}
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-ok" />
+              </span>
+            )}
           </Link>
         );
       })}

@@ -19,13 +19,26 @@ export function PcapUpload() {
   const [busy, setBusy] = React.useState(false);
   const [familyHint, setFamilyHint] = React.useState("");
   const [explain, setExplain] = React.useState(true);
+  const [bpfFilter, setBpfFilter] = React.useState("");
   const ref = React.useRef<HTMLInputElement>(null);
+
+  const BPF_PRESETS = [
+    { label: "All Traffic", bpf: "" },
+    { label: "HTTP/HTTPS", bpf: "tcp port 80 or tcp port 443" },
+    { label: "Exclude Broadcast/Multicast", bpf: "not broadcast and not multicast" },
+    { label: "DNS", bpf: "port 53" },
+    { label: "Admin (SSH/RDP)", bpf: "tcp port 22 or tcp port 3389" },
+  ];
 
   const run = async () => {
     if (!file) return;
     setBusy(true);
     try {
-      const result = await api.forecastPcap(file, { familyHint, explain });
+      const result = await api.forecastPcap(file, {
+        familyHint: familyHint.trim() || undefined,
+        explain,
+        bpfFilter: bpfFilter.trim() || undefined,
+      });
       setCsv(null);
       setResult(result);
       toast[result.summary.n_alerts ? "warning" : "success"](
@@ -47,12 +60,11 @@ export function PcapUpload() {
 
   return (
     <div className="flex flex-col gap-4">
-      <Panel title="PCAP / PCAPNG capture">
+      <Panel title="Wireshark / PCAP Capture Ingestion">
         <p className="text-sm text-muted">
-          The server reads the capture offline (no live-capture privileges), reassembles
-          bidirectional TCP/UDP flows, and runs the same pipeline as a flow CSV. Other
-          packet types are ignored; a capture with fewer than ~13 ten-second windows
-          produces no anchors.
+          Offline packet ingestion reads standard Wireshark (<code>.pcap</code>, <code>.pcapng</code>)
+          traces, reassembles bidirectional TCP/UDP flows, constructs 10-second state windows, and rolls the
+          World Model forward $K=6$ steps.
         </p>
         <div
           role="button"
@@ -74,13 +86,13 @@ export function PcapUpload() {
           className={"dropzone cursor-pointer p-8 text-center" + (drag ? " drag" : "")}
         >
           <FileUp className="mx-auto mb-1 text-brand" />
-          <div className="text-sm">
-            {file ? file.name : "Drop a .pcap / .pcapng here, or click to browse"}
+          <div className="text-sm font-medium">
+            {file ? file.name : "Drop a Wireshark capture (.pcap / .pcapng) here, or click to browse"}
           </div>
           <div className="mt-1 text-xs text-muted">
             {file
-              ? `${num(Math.round(file.size / 1024))} KB · uploaded to the backend on run`
-              : "≤ 60 MB · slice larger captures with editcap / tshark -c"}
+              ? `${num(Math.round(file.size / 1024))} KB · ready for packet reassembly`
+              : "≤ 60 MB · for large captures, slice with tshark / editcap or use BPF filter"}
           </div>
           <input
             ref={ref}
@@ -89,6 +101,39 @@ export function PcapUpload() {
             className="hidden"
             onChange={(e) => e.target.files?.[0] && setFile(e.target.files[0])}
           />
+        </div>
+
+        {/* BPF Filter Section */}
+        <div className="flex flex-col gap-2 rounded-md border border-line/60 bg-elevated/40 p-3">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Wireshark BPF Capture Filter (Optional)
+            </Label>
+            <span className="text-[11px] text-muted">Berkeley Packet Filter syntax</span>
+          </div>
+          <Input
+            value={bpfFilter}
+            onChange={(e) => setBpfFilter(e.target.value)}
+            placeholder="e.g. tcp port 80 or ip host 192.168.1.10"
+            className="font-mono text-xs"
+          />
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] text-muted mr-1">Presets:</span>
+            {BPF_PRESETS.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => setBpfFilter(p.bpf)}
+                className={`rounded border px-2 py-0.5 text-[11px] transition-colors ${
+                  bpfFilter === p.bpf
+                    ? "border-brand bg-brand/10 text-brand"
+                    : "border-line bg-surface hover:bg-elevated text-muted hover:text-ink"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -115,18 +160,34 @@ export function PcapUpload() {
             disabled={!file || busy}
             onClick={run}
           >
-            {busy ? "parsing…" : "Run forecast →"}
+            {busy ? "Parsing packets…" : "Run forecast →"}
           </Button>
         </div>
       </Panel>
 
-      <Panel title="Converting a large capture instead">
-        <p className="text-sm text-muted">
-          For very large or filtered captures, extract flows first and use the CSV tab:{" "}
-          <code>cicflowmeter -f capture.pcap -c flows.csv</code>, or slice with{" "}
-          <code>editcap -A &quot;2024-01-01 10:00:00&quot; -B &quot;2024-01-01 10:20:00&quot; in.pcap out.pcap</code>.
-        </p>
+      <Panel title="Wireshark Export & Preprocessing Guidelines">
+        <div className="flex flex-col gap-2 text-xs text-muted leading-relaxed">
+          <p>
+            <strong className="text-ink">1. Exporting from Wireshark:</strong> In Wireshark, use <code>File → Save As…</code> and select
+            <code> Wireshark/tcpdump/… pcap (*.pcap)</code> or <code>pcapng (*.pcapng)</code>.
+          </p>
+          <p>
+            <strong className="text-ink">2. Large Traces (&gt; 60 MB):</strong> Slice into targeted time intervals using standard Wireshark utilities:
+            <br />
+            <code className="bg-elevated px-1 py-0.5 rounded text-ink">
+              editcap -A &quot;2024-05-10 09:00:00&quot; -B &quot;2024-05-10 09:20:00&quot; full.pcap sliced.pcap
+            </code>
+          </p>
+          <p>
+            <strong className="text-ink">3. Extracting Flows Directly:</strong> You can also convert PCAPs to flow CSVs with CICFlowMeter:
+            <br />
+            <code className="bg-elevated px-1 py-0.5 rounded text-ink">
+              cicflowmeter -f capture.pcap -c flows.csv
+            </code>
+          </p>
+        </div>
       </Panel>
     </div>
   );
 }
+

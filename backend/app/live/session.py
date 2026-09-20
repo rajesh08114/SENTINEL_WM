@@ -78,12 +78,20 @@ class LiveSession:
 
     async def _emit(self, forecasts: Iterable[dict]) -> None:
         for fc in forecasts or []:
+            if "matched_rules" not in fc:
+                try:
+                    from app.rules.engine import RULE_ENGINE
+                    matches = RULE_ENGINE.evaluate_anchor(fc, fc.get("driving_features") or {})
+                    fc["matched_rules"] = [m.model_dump() for m in matches]
+                except Exception:
+                    fc["matched_rules"] = []
             self.ring.append(fc)
             self.stats["forecasts"] += 1
             self.stats["windows"] += 1
             if fc.get("alert"):
                 self.stats["alerts"] += 1
             await self._broadcast({"type": "forecast", **fc})
+
 
     # -- subscribers -------------------------------------------------
     async def subscribe(self, ws: Any) -> None:

@@ -40,7 +40,8 @@ class _Capture:
     def start(self, iface: str, bpf: Optional[str], send_flows):
         self.stop()
         self.meter = FlowMeter()
-        self._sniffer = self._factory(iface, bpf, self.meter.add_packet)
+        clean_bpf = bpf.strip() if bpf and bpf.strip() else None
+        self._sniffer = self._factory(iface, clean_bpf, self.meter.add_packet)
         self._sniffer.start()
         self._task = asyncio.create_task(self._pump(send_flows))
 
@@ -82,9 +83,12 @@ async def _session(ws, name: str, sniffer_factory) -> None:
                 continue
             cmd = msg.get("cmd")
             if cmd == "start":
-                cap.start(msg.get("iface"), msg.get("bpf"),
-                          lambda rows: send({"type": "flows", "records": rows}))
-                await send({"type": "started", "iface": msg.get("iface")})
+                try:
+                    cap.start(msg.get("iface"), msg.get("bpf"),
+                              lambda rows: send({"type": "flows", "records": rows}))
+                    await send({"type": "started", "iface": msg.get("iface")})
+                except Exception as e:
+                    await send({"type": "error", "detail": f"Failed to start capture: {e}"})
             elif cmd == "stop":
                 tail = cap.stop()
                 if tail:
@@ -95,6 +99,7 @@ async def _session(ws, name: str, sniffer_factory) -> None:
                             "interfaces": to_dicts(list_interfaces())})
     finally:
         cap.stop()
+
 
 
 async def run_agent(backend_ws_url: str, name: str, *,
